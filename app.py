@@ -2,103 +2,60 @@ import streamlit as st
 import pandas as pd
 from modules.data_manager import SheetManager
 from modules.visualizer import SkinVisualizer
-from pages.form.normal import show_normal_form
 
-# --- [함수 1] 구글 응답 결과 요약 보고서 (매개변수 df 추가) ---
-def render_business_summary(df): # (수정) df를 인자로 받도록 변경
-    st.subheader("📝 문항별 응답 요약 (Top Selection)")    
-    
-    if df.empty:
-        st.info("데이터가 충분하지 않습니다.")
-        return
-
-    summary_list = []
-    
-    # 12개 질문에 대해 순회 (인덱스 1부터 시작)
-    for i in range(1, len(df.columns)):
-        col_name = df.columns[i]
-        
-        # 주관식/객관식 판별 및 통계 로직
-        if "주로 사용" in col_name or "바라는 점" in col_name:
-            top_val = "주관식 응답"
-            count = f"{df[col_name].nunique()}개의 다양한 의견"
-        else:
-            series = df[col_name].str.split(', ').explode()
-            top_choice = series.value_counts()
-            
-            if not top_choice.empty:
-                top_val = top_choice.index[0]
-                count = f"{top_choice.values[0]}명 선택"
-            else:
-                top_val = "-"
-                count = "0명"
-
-        summary_list.append({
-            "문항 번호": f"Q{i}",
-            "질문 내용 요약": col_name[:25] + "..." if len(col_name) > 25 else col_name,
-            "최다 선택 답변": top_val,
-            "응답 수": count
-        })
-
-    summary_df = pd.DataFrame(summary_list)
-    st.table(summary_df)
-
-# --- [함수 2] 시각화 대시보드 ---
 def render_visual_dashboard(df):
-    st.subheader("📊 실시간 데이터 시각화")
+    """소장님의 3단계 전략 구조 반영"""
     viz = SkinVisualizer(df)
     
-    col1, col2 = st.columns(2)
-    with col1:
-        viz.plot_target_distribution()
-    with col2:
-        viz.plot_skin_concerns()
-        
+    # Part 1: Demographic
+    st.header("1️⃣ Demographic: 입주민 페르소나")
+    viz.plot_demographic_all()
+    viz.plot_high_intent_persona()
     st.divider()
-    viz.plot_visit_vs_reason()
     
+    # Part 2: OTT Deep-Dive
+    st.header("2️⃣ OTT 집중 분석: 효율성과 이탈")
+    viz.plot_ott_quarter_dist()
+    viz.plot_efficiency_scatter()
+    viz.plot_cancel_trigger_analysis()
     st.divider()
-    col3, col4 = st.columns(2)
-    with col3:
-        viz.plot_cost_analysis()
-    with col4:
-        viz.plot_selection_criteria()
+    
+    # Part 3: Hypothesis & Expansion
+    st.header("3️⃣ 가설 검증 및 시장 확장성")
+    viz.plot_pain_correlation()
+    viz.plot_market_expansion()
 
-# --- 메인 실행부 ---
 def main():
-    st.set_page_config(page_title="Skin AI Analysis", layout="wide")
+    st.set_page_config(page_title="Digital Rent Dashboard", layout="wide", page_icon="💸")
 
-    # 데이터 로드
-    try:
-        db = SheetManager()
-        df = db.get_all_responses_df()
-    except Exception as e:
-        st.error(f"데이터 연결 실패: {e}")
-        df = pd.DataFrame() 
+    st.sidebar.title("🧭 단지 안내소")
+    if st.sidebar.button("🔄 데이터 새로고침"):
+        st.cache_data.clear()
+        st.toast("최신 정보를 불러오는 중입니다...")
 
-    # 사이드바 메뉴
-    st.sidebar.title("🧭 Navigation")
-    menu = st.sidebar.selectbox("Go to", ["Home", "Normal Survey", "AI Prediction", "개발리드미"])
+    @st.cache_data(ttl=600)
+    def get_data():
+        try:
+            db = SheetManager()
+            df = db.get_all_responses_df()
+            return df
+        except Exception as e:
+            st.error(f"데이터 로드 에러: {e}")
+            return pd.DataFrame()
 
-    if menu == "Home":
-        st.write("# 🏠 Dashboard Home")
-        
+    df = get_data()
+
+    menu = st.sidebar.selectbox("메뉴", ["Dashboard Home", "Survey Page"])
+
+    if menu == "Dashboard Home":
+        st.write("# 💸 우리 단지 디지털 월세 리포트")
         if not df.empty:
-            # (수정) 함수 호출 시 로드한 df를 전달합니다.
-            render_business_summary(df) 
-            st.write("---")
             render_visual_dashboard(df)
         else:
-            st.info("수집된 데이터가 없습니다. 설문을 먼저 진행해주세요.")
-        
-    elif menu == "Normal Survey":
-        show_normal_form()
-
-    elif menu == "AI Prediction":
-        st.write("## 🤖 AI 분석 리포트 (준비 중)")
-
-    elif menu == "개발리드미":
-        st.write("리드미")        
+            st.warning("수집된 데이터가 없습니다.")
+    
+    elif menu == "Survey Page":
+        st.info("Tally 설문 페이지로 이동하거나 폼을 렌더링합니다.")
 
 if __name__ == "__main__":
     main()
