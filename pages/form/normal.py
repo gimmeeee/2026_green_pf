@@ -1,52 +1,28 @@
-# 기존 app.py의 설문 폼 로직
 # pages/form/normal.py
 import streamlit as st
-from modules.data_manager import SheetManager
+import streamlit.components.v1 as components
 
 def show_normal_form():
+    st.title("이번 달엔 '디지털 월세' 얼마나 내셨나요? 💸")
+    st.info("""
+    구독의 시대, 어떻게 하면 더 현명하게 '디지털 월세'를 관리할 수 있을지 생생한 목소리를 듣고 싶습니다.  
+    보내주신 소중한 응답은 '똑똑한 구독 서비스 관리 앱'을 설계하는 데 핵심적인 데이터로 사용됩니다. 감사합니다!
+            """)
 
-    try:
-        # 모듈 폴더의 클래스 호출
-        db = SheetManager(q_sheet="질문관리", r_sheet="응답결과")
-        questions_data = db.get_questions()
+    # Tally 설문지 URL (사용자의 Tally 주소로 교체하세요)
+    # 예: https://tally.so/embed/w2boXD?alignLeft=1&hideTitle=1&transparentBackground=1&dynamicHeight=1
+    tally_url = "https://tally.so/r/obodgN"
 
-    except Exception as e:
-        st.error(f"데이터 로드 실패: {e}")
-        return
+    # Tally 임베드 위젯 삽입
+    # scrolling=True를 설정하여 긴 설문도 원활하게 표시합니다.
+    components.iframe(tally_url, height=800, scrolling=True)
 
-    st.title("📋 피부 고민 설문조사")
-    user_id = st.text_input("연락처 또는 이메일", placeholder="중복 참여 확인용")
-
-    with st.form("survey_form"):
-        responses = {}
-        for q in questions_data:
-            q_num, q_text, q_type = q['문항번호'], q['질문내용'], q['질문유형']
-            q_options = [opt.strip() for opt in str(q['선택지']).split(',')] if q['선택지'] else []
-            
-            label = f"Q{q_num}. {q_text}"
-            if q_type == 'radio':
-                responses[q_num] = st.radio(label, options=q_options, index=None)
-            elif q_type == 'checkbox':
-                responses[q_num] = st.multiselect(label, options=q_options)
-            elif q_type == 'text':
-                responses[q_num] = st.text_area(label)
-            st.write("---")
-
-        if st.form_submit_button("설문 제출하기", type="primary"):
-            if not user_id:
-                st.warning("식별 정보를 입력해주세요.")
-            elif db.check_duplicate(user_id):
-                st.error("이미 참여하신 기록이 있습니다.")
-            else:
-                # 데이터 조립
-                row = [user_id]
-                for q in questions_data:
-                    ans = responses[q['문항번호']]
-                    row.append(", ".join(ans) if isinstance(ans, list) else (ans or ""))
-                
-                db.save_response(row)
-                st.success("제출 완료!")
-                st.balloons()
+    st.divider()
+    st.markdown("""
+    ### 💡 안내 사항
+    - 설문 제출 후 상단 메뉴의 **'Home(대시보드)'**으로 이동하시면 집계된 데이터를 확인하실 수 있습니다.
+    - 데이터 반영에 약간의 시간 차이가 발생할 수 있습니다.
+    """)
 
 if __name__ == "__main__":
     show_normal_form()
