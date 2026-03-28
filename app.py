@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 from modules.data_manager import SheetManager
 from modules.visualizer import SkinVisualizer
+# 설문 페이지 함수 임포트
+from pages.form.normal import show_normal_form
 
 def render_visual_dashboard(df):
     """소장님의 3단계 전략 구조 반영"""
@@ -45,6 +47,7 @@ def main():
 
     df = get_data()
 
+    # 메뉴 구성 (소장님 제공 코드 기반)
     menu = st.sidebar.selectbox("메뉴", ["Dashboard Home", "Survey Page"])
 
     if menu == "Dashboard Home":
@@ -55,7 +58,8 @@ def main():
             st.warning("수집된 데이터가 없습니다.")
     
     elif menu == "Survey Page":
-        st.info("Tally 설문 페이지로 이동하거나 폼을 렌더링합니다.")
+        # Survey Page 선택 시 Tally 임베드 함수 호출
+        show_normal_form()
 
 if __name__ == "__main__":
     main()
