@@ -67,8 +67,8 @@ class SkinVisualizer:
                 st.plotly_chart(fig_job, use_container_width=True)
 
     def plot_high_intent_persona(self):
-        """Part 1 - 시각화 2: 사용 고의향군 심층 분석 (UX 전문가 추천 로직)"""
-        st.markdown("##### [시각화 2] 사용 고의향 그룹 심층 분석 (Potential Power Users)")
+        """Part 1 - 시각화 2: 사용 고의향군 심층 분석"""
+        st.markdown("##### [시각화 2] 사용 고의향군 심층 분석 (Potential Power Users)")
         
         if 'usage_intent' in self.df.columns:
             avg_intent = self.df['usage_intent'].mean()
@@ -122,6 +122,8 @@ class SkinVisualizer:
                     
                     2. **기회 시장 발견**:  
                        전체 평균 의향 점수({avg_all:.1f}점) 대비 **{avg_high:.1f}점**의 강력한 지지를 보이는 **{p_desc}** 세그먼트는 현재 관리 방식에 한계를 느끼고 있는 기회 시장입니다.
+                       """)
+                       
                     
                     if 'annoying_moment' in self.df.columns:
                         st.markdown("---")
@@ -131,6 +133,13 @@ class SkinVisualizer:
                             st.info(f"💬 \"{p}\"")
                 else:
                     st.write("데이터 수집 후 상세 인사이트가 활성화됩니다.")
+
+    # app.py와의 호환성을 위한 더미 함수들
+    def plot_ott_quarter_dist(self): pass
+    def plot_efficiency_scatter(self): pass
+    def plot_cancel_trigger_analysis(self): pass
+    def plot_pain_correlation(self): pass
+    def plot_market_expansion(self): pass
 
     def plot_ott_quarter_dist(self):
         st.divider()
