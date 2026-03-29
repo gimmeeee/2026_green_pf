@@ -115,31 +115,37 @@ class SkinVisualizer:
                         p_desc = "다중 구독자군"
 
                     st.markdown(f"""
-                    **🎯 데이터 기반 즉시 분석 결과**
+                    **🎯 데이터 기반 분석 결과**
                     
                     1. **핵심 타겟(Primary Persona)**:  
-                       현재 서비스 도입 시 가장 먼저 결제할 확률이 높은 집단은 **'{top_gender} {top_job}({top_age})'**입니다. (해당 세그먼트 내 고의향 비중 최상위)
+                       데이터가 가리키는 우리 앱의 잠재 1순위 유저는 **'{top_gender} {top_job}({top_age})'**입니다. (해당 세그먼트 내 고의향 비중 최상위)
                     
                     2. **기회 시장 발견**:  
                        전체 평균 의향 점수({avg_all:.1f}점) 대비 **{avg_high:.1f}점**의 강력한 지지를 보이는 **{p_desc}** 세그먼트는 현재 관리 방식에 한계를 느끼고 있는 기회 시장입니다.
                        """)
                        
+                    # --- [수정된 usage_expect 탐색 로직] ---
+                    # 1. 정확한 이름 매칭 시도, 안되면 'expect'가 들어간 컬럼 탐색
+                    target_col = 'usage_expect' if 'usage_expect' in high_intent.columns else None
+                    if not target_col:
+                        target_col = next((c for c in high_intent.columns if 'expect' in c.lower()), None)
                     
-                    if 'annoying_moment' in self.df.columns:
-                        st.markdown("---")
-                        st.markdown("**📌 이들이 직접 언급한 Pain Points**")
-                        pains = high_intent['annoying_moment'].replace('', np.nan).dropna().unique()[:2]
-                        for p in pains:
-                            st.info(f"💬 \"{p}\"")
+                    if target_col:
+                        # 데이터 내의 실제 응답값만 필터링 (결측치, 빈 문자열 제외)
+                        valid_expects = high_intent[target_col].astype(str).replace(['', 'None', 'nan', 'nan '], np.nan).dropna().unique()
+                        
+                        if len(valid_expects) > 0:
+                            st.markdown("---")
+                            st.markdown("**🌟 이들이 맞춤 관리앱에 기대하는 사항**")
+                            # 상위 3개까지 노출
+                            for i, text in enumerate(valid_expects[:3]):
+                                st.success(f"**기대사항 {i+1}**\n\n\"{text}\"")
+                        else:
+                            st.caption("ℹ️ 'usage_expect' 컬럼은 있으나 아직 작성된 응답 내용이 없습니다.")
+                    else:
+                        st.error("⚠️ 시트에서 'usage_expect' 컬럼을 찾을 수 없습니다. 컬럼명을 다시 확인해 주세요.")
                 else:
-                    st.write("데이터 수집 후 상세 인사이트가 활성화됩니다.")
-
-    # app.py와의 호환성을 위한 더미 함수들
-    def plot_ott_quarter_dist(self): pass
-    def plot_efficiency_scatter(self): pass
-    def plot_cancel_trigger_analysis(self): pass
-    def plot_pain_correlation(self): pass
-    def plot_market_expansion(self): pass
+                    st.write("사용 고의향군 응답이 쌓이면 상세 분석이 활성화됩니다.")
 
     def plot_ott_quarter_dist(self):
         st.divider()
