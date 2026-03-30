@@ -33,7 +33,7 @@ class SkinVisualizer:
         else:
             self.df['pain_num'] = 0
 
-        # 5. 기타 수치형 변환
+        # 5. 수치형 변환 및 통합 구독료 계산
         num_fields = ['usage_intent', 'ott_time_total', 'fee_service_total']
         for field in num_fields:
             if field in self.df.columns:
@@ -41,7 +41,6 @@ class SkinVisualizer:
 
     def plot_demographic_all(self):
         """Part 1: 전체 응답자 분포 (성별/연령/직업 3분할)"""
-        st.markdown("#### 🏢 Part 1. 응답자 분석")
         st.markdown("##### [시각화 1] 전체 응답자 인구통계 분포")
         
         col1, col2, col3 = st.columns(3)
@@ -105,7 +104,7 @@ class SkinVisualizer:
                 high_intent, 
                 path=['gender', 'job', 'age_group'], 
                 values='usage_intent',
-                title="고의향군 계층 구조 (성별 > 직업 > 연령)",
+                title="고의향군 인구통계 분포 (성별 > 직업 > 연령)",
                 color='usage_intent',
                 color_continuous_scale='RdBu_r',
                 height=700,
@@ -118,6 +117,7 @@ class SkinVisualizer:
             st.plotly_chart(fig_sun, use_container_width=True)
 
         with right_col:
+            st.markdown(f"### 🎯 핵심 타겟 리포트")
             st.info(f"💡 전체 응답자 평균 사용 의향: **{avg_intent:.1f}점**")
             st.success(f"🚀 분석 대상: 사용 의향 5점 이상 고의향 유저 (**{len(high_intent)}명**)")
             
@@ -143,10 +143,8 @@ class SkinVisualizer:
                     (group_stats['usage_intent'] > avg_intent + 0.5) & 
                     (group_stats['Respondent ID'] >= 2)
                 ].sort_values(by='usage_intent', ascending=False)
-
-                st.markdown(f"### 🎯 핵심 타겟 리포트")
                 
-                # --- 메인 타겟 출력 (따옴표 밖으로 코드를 빼야 합니다) ---
+                # --- 메인 타겟 출력 ---
                 st.markdown(f"""
                 **1. 메인 볼륨 타겟 (Mass)**
                 - **그룹**: {top_persona_row['gender']} {top_persona_row['job']} ({top_persona_row['age_group']})
@@ -182,65 +180,181 @@ class SkinVisualizer:
             else:
                 st.warning("분석할 데이터가 부족합니다.")
 
-    def plot_ott_quarter_dist(self):
-        st.divider()
-        st.markdown("#### 🕒 Part 2. OTT 이용 행태 분석")
-        if 'user_seg' in self.df.columns:
-            order = ['Light', 'Middle', 'Heavy']
-            counts = self.df['user_seg'].value_counts().reindex(order).fillna(0)
-            fig = px.bar(x=counts.index, y=counts.values, color=counts.index, 
-                         title="유저 쿼터별 분포",
-                         color_discrete_map={'Light': '#93c5fd', 'Middle': '#3b82f6', 'Heavy': '#1d4ed8'})
-            st.plotly_chart(fig, use_container_width=True)
-
-    def plot_efficiency_scatter(self):
-        st.markdown("##### [시각화 2] 구독 효율성 분석")
-        if 'ott_time_total' in self.df.columns and 'fee_service_total' in self.df.columns:
-            # 1. 산점도 생성
-            fig = px.scatter(self.df, 
-                             x='ott_time_total', 
-                             y='fee_service_total', 
-                             color='user_seg', 
-                             size='service_count',
-                             hover_data=['job', 'age_group', 'service_count'], 
-                             labels={'ott_time_total': '시청 시간(h)', 'fee_service_total': '월 지출(원)', 'user_seg': '유저 그룹'},
-                             title="시간 대비 비용 효율성 (언더유저 분석)",
-                             color_discrete_map={'Light': '#60a5fa', 'Middle': '#2563eb', 'Heavy': '#1d4ed8'})
-
-            # 2. 언더유저(Under-user) 강조 영역 추가
-            # 시청 시간은 적고(예: 300h 이하), 지출은 높은(예: 6만원 이상) 구역
-            fig.add_vrect(x0=0, x1=300, y0=60000, y1=self.df['fee_service_total'].max() * 1.1,
-                          fillcolor="red", opacity=0.07, layer="below", line_width=0,
-                          annotation_text="비효율 구간 (언더유저)", annotation_position="top left",
-                          annotation_font=dict(color="red", size=12))
-
-            # 3. 레이아웃 최적화
-            fig.update_layout(plot_bgcolor='rgba(248, 250, 252, 0.5)',
-                              xaxis=dict(gridcolor='white'),
-                              yaxis=dict(gridcolor='white'))
-            
-            st.plotly_chart(fig, use_container_width=True)
-            st.info("💡 **언더유저 분석:** 붉은 영역에 위치한 사용자는 지출액 대비 사용 시간이 매우 적어, **구독 다이어트 기능**의 핵심 타겟이 됩니다.")
-
     def plot_cancel_trigger_analysis(self):
-        st.markdown("##### [시각화 3] 해지 트리거 분석")
+        st.markdown("##### [시각화 1] 해지 트리거 분석")
         col1, col2 = st.columns(2)
+        
         with col1:
             if 'ott_cancel_reason' in self.df.columns:
                 reasons = self.df['ott_cancel_reason'].astype(str).str.split(',').explode().str.strip()
-                counts = reasons.value_counts()
-                fig = px.bar(counts, orientation='h', title="전체 해지 사유", color=counts.values, color_continuous_scale='Reds')
+                reasons = reasons[reasons.str.lower() != 'nan'] # nan 제외
+
+                counts = reasons.value_counts().sort_values(ascending=True)
+
+                fig = px.bar(counts, orientation='h', title="전체 해지 사유 (중복 응답)", 
+                             color=counts.values, color_continuous_scale='Reds')
+                fig.update_layout(coloraxis_showscale=False, showlegend=False, xaxis_title="응답 수", yaxis_title=None)
                 st.plotly_chart(fig, use_container_width=True)
+
         with col2:
             if 'ott_cancel_reason_primary' in self.df.columns:
-                counts = self.df['ott_cancel_reason_primary'].value_counts()
-                fig = px.pie(values=counts.values, names=counts.index, title="결정적 해지 사유", hole=0.4,
-                             color_discrete_sequence=px.colors.qualitative.Pastel)
-                st.plotly_chart(fig, use_container_width=True)
+                primary_df = self.df[self.df['ott_cancel_reason_primary'].astype(str).str.lower() != 'nan']
+                # 결정적 사유도 빈도순 정렬 (높은 값이 위로)
+                counts_p = primary_df['ott_cancel_reason_primary'].value_counts().sort_values(ascending=True)
+                
+                # 가로 막대 차트로 변경
+                fig_p = px.bar(counts_p, orientation='h', title="결정적 해지 사유 (단일 선택)",
+                               color=counts_p.values, color_continuous_scale='Blues')
+                fig_p.update_layout(coloraxis_showscale=False, showlegend=False, xaxis_title="응답 수", yaxis_title=None, height=450)
+                st.plotly_chart(fig_p, use_container_width=True)
+
+        if 'ott_cancel_reason_primary' in self.df.columns:
+            
+            # 가장 높은 비중의 결정적 사유 가져오기
+            primary_counts = self.df['ott_cancel_reason_primary'].value_counts()
+            top_primary = primary_counts.index[0] if not primary_counts.empty else "비용 부담"
+
+            solution_dict = {
+                "접속 빈도가 낮음을 인지해서": "유저의 시청 데이터를 분석해 '돈만 내고 안 보는 서비스'를 선제적으로 알려주는 기능",
+                "비싸서": "구독료 합산 관리 및 인원 모집을 통한 계정 공유/할인 최적화 제안",
+                "보고싶은 콘텐츠가 적거나 없어서": "여러 OTT의 신작 및 종료 예정작을 통합하여 볼거리를 끊임없이 추천하는 기능",
+                "다른 OTT를 이용하기 위해": "기존 OTT의 일시 정지(해지)와 신규 OTT 가입을 원클릭으로 전환해주는 스케줄링 기능",
+                "보던 시리즈가 끝나서": "시리즈 완결 시점에 맞춰 자동 해지 예약을 돕거나 다음 관심작을 찾아주는 알림 기능",
+                "자동결제 알림을 보고 (앱 push, 카드결제 문자 등)": "결제일 3일 전 미리 알림을 주고, 불필요한 결제를 막아주는 결제 방어 기능"
+            }
+            
+            # 매칭되는 솔루션 문구 (없으면 기본값)
+            target_solution = solution_dict.get(top_primary, "유저의 Pain-point를 즉각 해결하는 맞춤형 관리 도구")
+
+            st.info(f"🎯 **Insight: 현재 해지 결정의 핵심 트리거는 '{top_primary}'입니다.**")
+            
+            st.markdown(f"""
+            유저가 해지를 결심하는 본질적인 이유는 '내가 지불하는 비용만큼 충분히 이용하고 있는가?'라는 **효율성의 문제**에서 시작됩니다.<br>
+            이는 우리가 [<b>{target_solution}</b>]을 제공해야 한다는 인사이트가 될 수 있습니다.
+            """, unsafe_allow_html=True)
+
+            st.markdown("<br><br>", unsafe_allow_html=True)
+
+        else:
+            st.warning("데이터에 'ott_cancel_reason_primary' 컬럼이 없습니다.")
+
+    def plot_ott_usage_efficiency(self):
+        st.markdown("##### [시각화 2] 구독 효율성 분석")
+
+        with st.expander("💡 시청 쿼터(Engagement Level) 정의 및 분석 기준", expanded=False):
+            c1, c2, c3 = st.columns(3)
+            c1.markdown("**🌱 Light **\n\n주 3시간 미만 시청.\n가성비가 낮고 이탈 리스크가 높음")
+            c2.markdown("**🌿 Middle **\n\n주 3~12시간 시청.\n안정적인 이용 행태를 보이는 메인 볼륨")
+            c3.markdown("**🔥 Heavy **\n\n주 12시간 이상 시청.\n다수 서비스 구독 중이나 시간당 비용은 최저")
+            st.caption("※ 효율성 분석은 유저가 지불하는 모든 OTT 구독료 합계(넷플릭스, 티빙 등)를 기준으로 산출되었습니다.")
+
+        # 1. 총 구독료 계산 (제시된 모든 OTT 컬럼 합산)
+        fee_cols = [
+            'ott_fee_netflix', 'ott_fee_tving', 'ott_fee_wavve', 
+            'ott_fee_disney', 'ott_fee_couplay', 'ott_fee_watcha', 
+            'ott_fee_laftel', 'ott_fee_etc'
+        ]
+
+        # 데이터프레임에 해당 컬럼이 있는지 확인 후 합산 (결측치는 0 처리)
+        available_fee_cols = [c for c in fee_cols if c in self.df.columns]
+
+        for col in available_fee_cols:
+            self.df[col] = pd.to_numeric(self.df[col], errors='coerce').fillna(0)
+
+        self.df['total_ott_fee'] = self.df[available_fee_cols].sum(axis=1)
+
+        self.df['cost_per_hour'] = self.df.apply(
+            lambda x: x['total_ott_fee'] / x['ott_time_total'] if x['ott_time_total'] > 0 else 0, 
+            axis=1
+        )
+        
+        if 'user_seg' in self.df.columns:
+            # 공백 제거 및 첫 글자만 대문자로 변환 (예: middle -> Middle)
+            self.df['user_seg'] = self.df['user_seg'].astype(str).str.strip().str.capitalize()
+            
+            # 카테고리 순서 고정 (그래프 정렬용)
+            self.df['user_seg'] = pd.Categorical(
+                self.df['user_seg'], 
+                categories=['Light', 'Middle', 'Heavy'], 
+                ordered=True
+            )
+
+        # 2. 차트 레이아웃 분할 (좌: 분포 막대, 우: 효율성 산점도)
+        col_left, col_right = st.columns([1, 1.5])
+
+        with col_left:
+            # 유저 쿼터별 분포 (세로 막대)
+            if 'user_seg' in self.df.columns:
+                order = ['Light', 'Middle', 'Heavy']
+                counts = self.df['user_seg'].value_counts().reindex(order).fillna(0).reset_index()
+                counts.columns = ['Segment', 'Count']
+                
+                fig_bar = px.bar(
+                    counts, x='Segment', y='Count', color='Segment',
+                    text='Count',
+                    color_discrete_map={'Light': '#cbd5e1', 'Middle': '#94a3b8', 'Heavy': '#E50914'},
+                    title="시청 쿼터별 유저 분포"
+                )
+
+                fig_bar.update_traces(texttemplate='%{text}명', textposition='outside')
+                fig_bar.update_layout(showlegend=False, yaxis_title="응답자 수", height=450)
+                st.plotly_chart(fig_bar, use_container_width=True)
+
+        with col_right:
+            # 실제 가성비 산점도
+            y_limit = self.df['cost_per_hour'].quantile(0.95) * 1.1
+            fig_scat = px.scatter(
+                self.df, x='ott_time_total', y='cost_per_hour',
+                color='user_seg' if 'user_seg' in self.df.columns else None,
+                size='total_ott_fee',
+                hover_data=['total_ott_fee', 'gender', 'age_group'],
+                color_discrete_map={'Light': '#cbd5e1', 'Middle': '#94a3b8', 'Heavy': '#E50914'},
+                labels={'ott_time_total': '주간 시청 시간 (h)', 'cost_per_hour': '시간당 비용 (원/h)'},
+                title="시청 시간 대비 구독 효율성 (가성비 곡선)"
+            )
+
+            fig_scat.update_layout(
+                height=500,
+                # 여백(margin)을 충분히 주어 축 라벨이 잘리지 않게 함
+                margin=dict(l=50, r=20, t=60, b=50),
+                # 범례를 차트 상단으로 옮겨서 가로 공간 확보
+                legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=1.02,
+                    xanchor="right",
+                    x=1
+                )
+            )
+            
+            # 축 범위 조정
+            fig_scat.update_yaxes(range=[0, y_limit], gridcolor='#f0f0f0')
+            fig_scat.update_xaxes(gridcolor='#f0f0f0')
+            
+            st.plotly_chart(fig_scat, use_container_width=True)
+
+        # 3. 하단 요약 지표 및 인사이트
+        avg_total_fee = self.df['total_ott_fee'].mean()
+        
+        m1, m2, m3 = st.columns(3)
+        m1.metric("평균 총 구독료", f"{int(avg_total_fee):,}원")
+        
+        if 'user_seg' in self.df.columns:
+            eff_stats = self.df.groupby('user_seg')['cost_per_hour'].mean()
+            if 'Heavy' in eff_stats:
+                m2.metric("Heavy 평균 가성비", f"{int(eff_stats['Heavy']):,}원/h", "최고 효율")
+            if 'Light' in eff_stats:
+                m3.metric("Light 평균 가성비", f"{int(eff_stats['Light']):,}원/h", "최저 효율", delta_color="inverse")
+
+        st.success(f"""
+        **💡 분석 결과 요약:**
+        - 유저들은 평균적으로 월 **{int(avg_total_fee):,}원**의 OTT 구독료를 지불하고 있습니다.
+        - **Heavy 유저**는 다소 높은 구독료를 지불함에도 불구하고, 압도적인 이용량 덕분에 가장 낮은 시간당 비용을 보입니다.
+        - **Light 유저**의 경우 시간당 비용이 {int(eff_stats['Light']):,}원으로 매우 높아, 경제적 관점에서 가장 먼저 구독 해지를 고려할 확률이 높은 집단입니다.
+        """)
 
     def plot_pain_correlation(self):
         st.divider()
-        st.markdown("#### 🤯 Part 3. 가설 검증 및 인사이트")
         st.markdown("##### [시각화 1] 구독 비용 및 개수와 관리 피로도의 관계")
         
         # 1. 데이터 준비 및 지터(Jitter) 최적화

@@ -20,16 +20,15 @@ def render_visual_dashboard(df):
     st.divider()
 
     # Part 1: Demographic
-    st.header("1️⃣ Demographic: 입주민 페르소나")
+    st.header("1️⃣ 응답자 분석 (Demographic)")
     viz.plot_demographic_all()
     viz.plot_high_intent_persona()
     st.divider()
     
     # Part 2: OTT Deep-Dive
-    st.header("2️⃣ OTT 집중 분석: 효율성과 이탈")
-    viz.plot_ott_quarter_dist()
-    viz.plot_efficiency_scatter()
+    st.header("2️⃣ OTT 집중 분석: 해지 사유와 효율성")
     viz.plot_cancel_trigger_analysis()
+    viz.plot_ott_usage_efficiency()
     st.divider()
     
     # Part 3: Hypothesis & Expansion
@@ -68,7 +67,7 @@ def main():
     df = get_data()
 
     # 메뉴 구성
-    menu = st.sidebar.selectbox("메뉴", ["Dashboard Home", "Survey Page"])
+    menu = st.sidebar.selectbox("메뉴", ["Dashboard Home", "Survey Page", "부록"])
 
     if menu == "Dashboard Home":
         st.write("# 💸 우리 단지 디지털 월세 리포트")
