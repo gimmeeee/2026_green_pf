@@ -66,86 +66,121 @@ class SkinVisualizer:
                 fig_job.update_layout(showlegend=False, xaxis_title=None, yaxis_title="인원 수")
                 st.plotly_chart(fig_job, use_container_width=True)
 
+    def get_group_comments(self, sub_df, col_name='usage_expect', max_items=3):
+        """특정 그룹의 주관식 응답(usage_expect)에서 의미 없는 답변을 제외하고 추출"""
+        if col_name not in sub_df.columns:
+            return []
+        
+        # 1. 기본적인 전처리 (결측치 제거 및 문자열 변환)
+        raw_comments = sub_df[col_name].dropna().astype(str).unique().tolist()
+        
+        # 2. 필터링할 무의미한 단어들 (불용어 설정)
+        invalid_texts = [
+            '없음', '없습니다', '아니오', '아니요', '생각나지 않음', 
+            '딱히', '모름', '모르겠음', '데이터 없음', '않음', '무료'
+        ]
+        
+        # 3. 필터링 로직: 공백 제거 후 글자 수가 너무 적거나 불용어에 포함되면 제외
+        filtered_comments = [
+            msg for msg in raw_comments 
+            if len(msg.strip()) > 2  # 최소 2글자 이상 (ex: '음', '넵' 등 제외)
+            and not any(invalid in msg for invalid in invalid_texts)
+        ]
+        
+        return filtered_comments[:max_items]
+
     def plot_high_intent_persona(self):
         """Part 1 - 시각화 2: 사용 고의향군 심층 분석"""
         st.markdown("##### [시각화 2] 사용 고의향군 심층 분석 (Potential Power Users)")
         
-        if 'usage_intent' in self.df.columns:
-            avg_intent = self.df['usage_intent'].mean()
-            # 고의향군 기준 설정 (5점 이상)
-            high_intent = self.df[self.df['usage_intent'] >= 5]
+        # 고의향군 필터링 (5점 이상)
+        high_intent = self.df[self.df['usage_intent'] >= 5].copy()
+        avg_intent = self.df['usage_intent'].mean()
+        
+        left_col, right_col = st.columns([1.2, 1])
+
+        with left_col:
+            # 선버스트 차트: 성별 -> 직업 -> 연령 순으로 계층 구조 시각화
+            fig_sun = px.sunburst(
+                high_intent, 
+                path=['gender', 'job', 'age_group'], 
+                values='usage_intent',
+                title="고의향군 계층 구조 (성별 > 직업 > 연령)",
+                color='usage_intent',
+                color_continuous_scale='RdBu_r',
+                height=700,
+            )
+            # 퍼센트와 라벨이 함께 나오도록 수정
+            fig_sun.update_traces(
+                textinfo="label+percent parent",
+                hovertemplate='<b>%{label}</b><br>사용의향 합계: %{value}<br>비중: %{percentParent:.1%}'
+            )
+            st.plotly_chart(fig_sun, use_container_width=True)
+
+        with right_col:
+            st.info(f"💡 전체 응답자 평균 사용 의향: **{avg_intent:.1f}점**")
+            st.success(f"🚀 분석 대상: 사용 의향 5점 이상 고의향 유저 (**{len(high_intent)}명**)")
             
-            left_col, right_col = st.columns([1.2, 1], gap="large")
-
-            with left_col:
-                st.write("**사용 고의향군의 성별/직업/연령 계층 구조**")
-                if not high_intent.empty:
-                    path_cols = [col for col in ['gender', 'job', 'age_group'] if col in high_intent.columns]
-                    fig = px.sunburst(high_intent, 
-                                      path=path_cols, 
-                                      color_discrete_sequence=px.colors.qualitative.Pastel)
-                    fig.update_traces(textinfo="label+percent parent")
-                    fig.update_layout(margin=dict(t=20, l=0, r=0, b=20))
-                    st.plotly_chart(fig, use_container_width=True)
-                else:
-                    st.warning("분석할 사용 고의향 데이터가 부족합니다.")
-
-            with right_col:
-                st.info(f"💡 전체 응답자 평균 사용 의향: **{avg_intent:.1f}점**")
-                st.success(f"🚀 분석 대상: 사용 의향 5점 이상 고의향 유저 (**{len(high_intent)}명**)")
+            if not high_intent.empty:
+                # 1. 메인 페르소나 데이터 추출
+                persona_counts = high_intent.groupby(['gender', 'job', 'age_group']).size().reset_index(name='count')
+                top_persona_row = persona_counts.loc[persona_counts['count'].idxmax()]
                 
-                if not high_intent.empty:
-                    # 데이터 기반 자동 페르소나 추출
-                    top_gender = high_intent['gender'].mode()[0] if 'gender' in high_intent.columns else "-"
-                    top_job = high_intent['job'].mode()[0] if 'job' in high_intent.columns else "-"
-                    top_age = high_intent['age_group'].mode()[0] if 'age_group' in high_intent.columns else "-"
+                # [추가] 메인 타겟에 해당하는 데이터 필터링
+                main_sub = high_intent[
+                    (high_intent['gender'] == top_persona_row['gender']) & 
+                    (high_intent['job'] == top_persona_row['job']) & 
+                    (high_intent['age_group'] == top_persona_row['age_group'])
+                ]
+
+                # 2. 고효율 페르소나 데이터 추출
+                group_stats = high_intent.groupby(['gender', 'job', 'age_group']).agg({
+                    'usage_intent': 'mean',
+                    'Respondent ID': 'count'
+                }).reset_index()
+                
+                efficient_targets = group_stats[
+                    (group_stats['usage_intent'] > avg_intent + 0.5) & 
+                    (group_stats['Respondent ID'] >= 2)
+                ].sort_values(by='usage_intent', ascending=False)
+
+                st.markdown(f"### 🎯 핵심 타겟 리포트")
+                
+                # --- 메인 타겟 출력 (따옴표 밖으로 코드를 빼야 합니다) ---
+                st.markdown(f"""
+                **1. 메인 볼륨 타겟 (Mass)**
+                - **그룹**: {top_persona_row['gender']} {top_persona_row['job']} ({top_persona_row['age_group']})
+                """)
+                
+                # 주관식 답변 출력 (함수 호출)
+                main_v_msgs = self.get_group_comments(main_sub) 
+                for msg in main_v_msgs:
+                    st.caption(f"🗨️ \"{msg}\"")
+
+                # --- 고효율 타겟 출력 ---
+                if not efficient_targets.empty:
+                    eff_row = efficient_targets.iloc[0]
                     
-                    # 기회 시장 분석: 전체 대비 특정 집단의 의향 점수 비교
-                    avg_all = self.df['usage_intent'].mean()
-                    avg_high = high_intent['usage_intent'].mean()
-                    
-                    # 가장 피로도가 높은 집단 유추 (가장 많은 서비스를 구독 중인 고의향군)
-                    service_cols = [col for col in self.df.columns if 'service_current_' in col]
-                    if service_cols:
-                        high_intent_copy = high_intent.copy()
-                        high_intent_copy['sc'] = high_intent_copy[service_cols].apply(pd.to_numeric, errors='coerce').sum(axis=1)
-                        heavy_persona = high_intent_copy.loc[high_intent_copy['sc'].idxmax()]
-                        p_desc = f"{heavy_persona['job']}({heavy_persona['age_group']})"
-                    else:
-                        p_desc = "다중 구독자군"
+                    # [추가] 고효율 타겟에 해당하는 데이터 필터링
+                    eff_sub = high_intent[
+                        (high_intent['gender'] == eff_row['gender']) & 
+                        (high_intent['job'] == eff_row['job']) &
+                        (high_intent['age_group'] == eff_row['age_group'])
+                    ]
 
                     st.markdown(f"""
-                    **🎯 데이터 기반 분석 결과**
+                    **2. 고효율 집중 타겟 (Niche & High-Value) 🚩**
+                    - **그룹**: **{eff_row['gender']} {eff_row['job']} ({eff_row['age_group']})**
+                    - **평균 의향**: **{eff_row['usage_intent']:.1f}점**
+                    """)
                     
-                    1. **핵심 타겟(Primary Persona)**:  
-                       데이터가 가리키는 우리 앱의 잠재 1순위 유저는 **'{top_gender} {top_job}({top_age})'**입니다. (해당 세그먼트 내 고의향 비중 최상위)
-                    
-                    2. **기회 시장 발견**:  
-                       전체 평균 의향 점수({avg_all:.1f}점) 대비 **{avg_high:.1f}점**의 강력한 지지를 보이는 **{p_desc}** 세그먼트는 현재 관리 방식에 한계를 느끼고 있는 기회 시장입니다.
-                       """)
-                       
-                    # --- [수정된 usage_expect 탐색 로직] ---
-                    # 1. 정확한 이름 매칭 시도, 안되면 'expect'가 들어간 컬럼 탐색
-                    target_col = 'usage_expect' if 'usage_expect' in high_intent.columns else None
-                    if not target_col:
-                        target_col = next((c for c in high_intent.columns if 'expect' in c.lower()), None)
-                    
-                    if target_col:
-                        # 데이터 내의 실제 응답값만 필터링 (결측치, 빈 문자열 제외)
-                        valid_expects = high_intent[target_col].astype(str).replace(['', 'None', 'nan', 'nan '], np.nan).dropna().unique()
-                        
-                        if len(valid_expects) > 0:
-                            st.markdown("---")
-                            st.markdown("**🌟 이들이 맞춤 관리앱에 기대하는 사항**")
-                            # 상위 3개까지 노출
-                            for i, text in enumerate(valid_expects[:3]):
-                                st.success(f"**기대사항 {i+1}**\n\n\"{text}\"")
-                        else:
-                            st.caption("ℹ️ 'usage_expect' 컬럼은 있으나 아직 작성된 응답 내용이 없습니다.")
-                    else:
-                        st.error("⚠️ 시트에서 'usage_expect' 컬럼을 찾을 수 없습니다. 컬럼명을 다시 확인해 주세요.")
-                else:
-                    st.write("사용 고의향군 응답이 쌓이면 상세 분석이 활성화됩니다.")
+                    # 주관식 답변 출력 (함수 호출)
+                    eff_v_msgs = self.get_group_comments(eff_sub) 
+                    for msg in eff_v_msgs:
+                        st.caption(f"🗨️ \"{msg}\"")
+                
+            else:
+                st.warning("분석할 데이터가 부족합니다.")
 
     def plot_ott_quarter_dist(self):
         st.divider()
