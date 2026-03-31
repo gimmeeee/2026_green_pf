@@ -1,0 +1,33 @@
+.env 파일을 만듭니다.
+
+GOOGLE_APPLICATION_CREDENTIALS="Google Service Account JSON 파일 경로"
+ 
+GOOGLE_SHEET_ID="Google Spreadsheet ID (URL의 d/와 /edit 사이 값)"
+
+GOOGLE_API_KEY="Gemini API Key
+
+** 중요 : 항상 .gitignore 파일부터 만드시고 .env 파일 외 업로드하면 안되는 폴더 및 파일리스트를 기입합니다.
+
+my-skin-survey/
+├── .env
+├── app.py              # 메인 엔트리 (홈 화면 및 라우팅 제어)
+├── modules/            # 공통 로직 (인증, 데이터 관리)
+│   ├── __init__.py
+│   ├── auth_utils.py
+│   └── data_manager.py
+└── pages/
+    └── form/
+        ├── __init__.py # 폴더 내 임포트를 위해 필요
+        └── normal.py   # 기존 app.py의 설문 폼 로직
+
+pip install -r requirements.txt 명령주기
+
+💡 가장 안전한 방법 (추천)
+
+👉 그냥 이렇게 하세요:
+
+새 프로젝트 생성
+Billing 연결
+Gemini API 활성화
+API 키 새로 발급
+.env에 넣기

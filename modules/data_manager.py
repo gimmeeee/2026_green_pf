@@ -21,24 +21,22 @@ class SheetManager:
     def get_all_responses_df(self, sheet_name=None):
         """
         모든 응답 데이터를 데이터프레임으로 변환. 
-        get_all_records() 대신 get_all_values()를 사용하여 데이터 유실 방지.
+        get_all_values()를 사용하여 데이터 유실 방지 및 전처리 포함.
         """
         target = sheet_name or self.r_sheet_name
         worksheet = self.spreadsheet.worksheet(target)
         
-        # get_all_values()는 시트의 모든 셀을 리스트의 리스트로 가져옵니다. (가장 확실한 방법)
         all_values = worksheet.get_all_values()
         
         if not all_values:
             return pd.DataFrame()
             
-        # 첫 번째 행을 헤더로 설정
         headers = all_values[0]
         data = all_values[1:]
         
         df = pd.DataFrame(data, columns=headers)
         
-        # 1. Submission ID가 비어있는 가짜 행(공백 행) 제거
+        # 1. Submission ID 또는 필수 값이 비어있는 행 제거
         if 'Submission ID' in df.columns:
             df = df[df['Submission ID'].str.strip() != ""]
             
@@ -52,6 +50,16 @@ class SheetManager:
         """설문 문항 로드"""
         target = sheet_name or self.q_sheet_name
         return self.spreadsheet.worksheet(target).get_all_records()
+
+    def check_duplicate(self, user_id, col_index=1, sheet_name=None):
+        """
+        특정 ID가 이미 시트에 존재하는지 확인 (중복 제출 방지)
+        col_index: ID가 저장된 열 번호 (기본값 1: 첫 번째 열)
+        """
+        target = sheet_name or self.r_sheet_name
+        # col_values는 해당 열의 모든 데이터를 리스트로 가져옵니다.
+        existing_ids = self.spreadsheet.worksheet(target).col_values(col_index)
+        return str(user_id) in [str(id).strip() for id in existing_ids]
 
     def save_response(self, row_data, sheet_name=None):
         """설문 응답 저장"""

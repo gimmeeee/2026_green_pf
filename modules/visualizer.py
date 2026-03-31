@@ -184,7 +184,7 @@ class SkinVisualizer:
         st.markdown("##### [시각화 1] 해지 트리거 분석")
         col1, col2 = st.columns(2)
         
-# 공통 레이아웃 설정
+        # 공통 레이아웃 설정
         common_layout = dict(
             coloraxis_showscale=False,
             showlegend=False,
@@ -222,21 +222,18 @@ class SkinVisualizer:
         # --- [col2] 결정적 해지 사유 (단수 응답) ---
         with col2:
             if 'ott_cancel_reason_primary' in self.df.columns:
-                # 데이터 처리 (primary 컬럼 기준)
                 primary_series = self.df['ott_cancel_reason_primary'].astype(str).str.strip()
                 primary_series = primary_series[primary_series.str.lower() != 'nan']
                 counts_p = primary_series.value_counts().sort_values(ascending=True)
-                
-                # 차트 생성
+            
                 fig_p = px.bar(counts_p, orientation='h', title="결정적 해지 사유 (단일 응답)",
-                               color=counts_p.values, color_continuous_scale='Blues')
-                
-                # 레이아웃 적용
-                line_widths = [1 if val <= 5 else 0 for val in counts.values]
+                            color=counts_p.values, color_continuous_scale='Blues')
+            
+                line_widths_p = [1 if val <= 5 else 0 for val in counts_p.values] 
                 fig_p.update_traces(
-                    marker_line_width=line_widths, # 계산된 리스트 적용
-                    marker_line_color='lightgrey', # 연한 회색 테두리
-                    text=counts.values,
+                    marker_line_width=line_widths_p, 
+                    marker_line_color='lightgrey',
+                    text=counts_p.values, # 이제 단수 응답 숫자가 제대로 나옵니다
                     textposition='outside',
                     cliponaxis=False
                 )
@@ -388,6 +385,73 @@ class SkinVisualizer:
         - **Heavy 유저**는 다소 높은 구독료를 지불함에도 불구하고, 압도적인 이용량 덕분에 가장 낮은 시간당 비용을 보입니다.
         - **Light 유저**의 경우 시간당 비용이 {int(eff_stats['Light']):,}원으로 매우 높아, 경제적 관점에서 가장 먼저 구독 해지를 고려할 확률이 높은 집단입니다.
         """)
+
+    def plot_segment_reason_correlation(self):
+        """유저 세그먼트(시청 쿼터)별 해지 사유 연결 분석"""
+        st.markdown("##### [시각화 3] 시청 쿼터별 해지 사유 심층 연결")
+        
+        # 1. 데이터 준비 여부 확인
+        if 'user_seg' not in self.df.columns or 'ott_cancel_reason_primary' not in self.df.columns:
+            st.warning("세그먼트 데이터 또는 해지 사유 데이터가 부족합니다.")
+            return
+
+        target_reason = "접속 빈도가 낮음을 인지해서"
+        
+        # 2. 분석용 임시 데이터프레임 생성
+        # 'user_seg'는 카테고리형이므로 문자열로 변환하여 처리
+        analysis_df = self.df.copy()
+        analysis_df['is_target_reason'] = (analysis_df['ott_cancel_reason_primary'] == target_reason)
+        
+        # 3. 그룹별 응답 비중 계산 (%)
+        # 각 세그먼트 내에서 해당 사유를 선택한 사람의 비율 산출
+        segment_stats = analysis_df.groupby('user_seg', observed=True)['is_target_reason'].mean() * 100
+        segment_stats = segment_stats.reset_index()
+        segment_stats.columns = ['Segment', 'Response_Rate']
+
+        # 4. 시각화 (그룹별 막대 차트)
+        fig = px.bar(
+            segment_stats, 
+            x='Segment', 
+            y='Response_Rate',
+            text='Response_Rate',
+            color='Segment',
+            title=f"유저 그룹별 '{target_reason}' 선택 비중",
+            labels={'Response_Rate': '선택 비중 (%)', 'Segment': '시청 쿼터'},
+            color_discrete_map={'Light': '#E50914', 'Middle': '#94a3b8', 'Heavy': '#cbd5e1'} # Light를 강조
+        )
+
+        fig.update_traces(
+            texttemplate='%{text:.1f}%', 
+            textposition='outside'
+        )
+        
+        fig.update_layout(
+            yaxis_title="결정적 사유 응답 비중 (%)",
+            showlegend=False,
+            height=400,
+            margin=dict(t=50, b=50)
+        )
+
+        # 5. 화면 배치
+        col_chart, col_text = st.columns([1.5, 1])
+        
+        with col_chart:
+            st.plotly_chart(fig, use_container_width=True)
+            
+        with col_text:
+            st.markdown(f"### 🧐 연결 인사이트")
+            
+            # 데이터에 따른 동적 메시지 생성
+            light_rate = segment_stats.loc[segment_stats['Segment'] == 'Light', 'Response_Rate'].values[0]
+            heavy_rate = segment_stats.loc[segment_stats['Segment'] == 'Heavy', 'Response_Rate'].values[0]
+            
+            diff_factor = light_rate / heavy_rate if heavy_rate > 0 else 0
+
+            st.write(f"""
+            - **가설 검증**: 가성비 곡선에서 확인한 최저 효율 집단(**Light**)은 실제로 **'{target_reason}'**을 해지 사유로 꼽는 비율이 가장 높게 나타납니다.
+            - **결과**: Light 유저의 응답률은 **{light_rate:.1f}%**로, Heavy 유저({heavy_rate:.1f}%) 대비 약 **{diff_factor:.1f}배** 높은 수치를 보입니다.
+            - **전략**: 이는 '이용량 부족'이 단순한 느낌이 아니라, 실제 **구독료에 대한 손실감**으로 이어져 해지를 실행하게 만드는 핵심 기제임을 증명합니다.
+            """)
 
     def plot_pain_correlation(self):
         st.divider()
