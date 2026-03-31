@@ -7,8 +7,11 @@ langchain
 langchain-community
 langchain-core
 langchain-google-genai
+langchain-huggingface
 langchain-chroma
 chromadb
 google-genai
 google-auth-oauthlib
 google-auth
+sentence-transformers
+google-generativeai
