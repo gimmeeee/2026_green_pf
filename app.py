@@ -36,57 +36,46 @@ def render_visual_dashboard(df):
     viz.plot_ott_usage_efficiency()
 
 # 3. 플로팅 챗봇 UI (위치 고정 특화)
-def render_chatbot_ui():
-    # CSS: 아이콘과 팝업을 화면에 물리적으로 박아버림 (스크롤 영향 0)
+def inject_floating_css():
     st.markdown("""
         <style>
-        /* 1. 플로팅 버튼: 우측 하단 절대 고정 */
-        div.stButton > button[key="floating_chat_icon"] {
-            position: fixed !important;
-            bottom: 30px !important;
-            right: 30px !important;
-            width: 70px !important;
-            height: 70px !important;
-            border-radius: 50% !important;
-            background-color: #FF4B4B !important;
-            color: white !important;
-            font-size: 30px !important;
-            z-index: 1000000 !important; /* 최상단 레이어 */
-            box-shadow: 0 4px 20px rgba(0,0,0,0.3) !important;
-            border: none !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
+        /* 1. 플로팅 버튼: 스크롤 상관없이 화면 우측 하단 고정 */
+        .floating-button {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 70px;
+            height: 70px;
+            background-color: #FF4B4B;
+            color: white;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 70px;
+            font-size: 30px;
+            cursor: pointer;
+            z-index: 1000000;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            border: none;
         }
 
-        /* 2. 대화창 팝업: 아이콘 바로 위에 고정 */
-        .chat-popup-window {
-            position: fixed !important;
-            bottom: 110px !important;
-            right: 30px !important;
-            width: 380px !important;
-            height: 600px !important;
-            background-color: white !important;
-            border-radius: 20px !important;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.2) !important;
-            z-index: 999999 !important;
-            display: flex !important;
-            flex-direction: column !important;
-            border: 1px solid #eee !important;
-            overflow: hidden !important;
-        }
-
-        /* 3. 입력창: 팝업창 내부 하단에 강제 고정 */
-        div[data-testid="stChatInput"] {
-            position: fixed !important;
-            bottom: 125px !important; 
-            right: 45px !important;
-            width: 350px !important;
-            z-index: 1000001 !important;
-            background-color: white !important;
+        /* 2. 팝업 대화창: 버튼 바로 위에 고정 */
+        .chat-popup {
+            position: fixed;
+            bottom: 110px;
+            right: 30px;
+            width: 380px;
+            height: 600px;
+            background-color: white;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            z-index: 999999;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid #eee;
+            overflow: hidden;
         }
         
-        /* 팝업 헤더 스타일 */
+        /* 3. 팝업 내부 헤더 */
         .chat-header {
             background-color: #FF4B4B;
             padding: 15px;
@@ -97,49 +86,115 @@ def render_chatbot_ui():
         </style>
     """, unsafe_allow_html=True)
 
+def render_chatbot_ui():
+    # 1. 세션 상태 관리
     if "chat_open" not in st.session_state:
         st.session_state.chat_open = False
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
-    # 💬 플로팅 아이콘 생성
-    if st.button("💬", key="floating_chat_icon"):
+    # 2. CSS 주입 (Streamlit 기본 요소는 숨기고 커스텀 버튼 디자인 적용)
+    st.markdown("""
+        <style>
+        /* 기존 스트림릿 버튼 숨기기 (키가 포함된 버튼만 타겟팅) */
+        div.stButton > button[key="chat_button"] {
+            display: none !important;
+        }
+
+        /* [진짜 플로팅 버튼] 디자인 */
+        .custom-float-btn {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 65px;
+            height: 65px;
+            background-color: #FF4B4B;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            z-index: 999999;
+            border: none;
+            transition: all 0.3s ease;
+        }
+        .custom-float-btn:hover {
+            transform: scale(1.1);
+        }
+
+        /* 팝업 대화창 스타일 */
+        .chat-popup {
+            position: fixed;
+            bottom: 110px;
+            right: 30px;
+            width: 370px;
+            height: 580px;
+            background-color: white;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            z-index: 999998;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid #eee;
+            overflow: hidden;
+        }
+
+        /* 입력창 위치 강제 고정 */
+        div[data-testid="stChatInput"] {
+            position: fixed !important;
+            bottom: 125px !important; 
+            right: 45px !important;
+            width: 340px !important;
+            z-index: 1000000 !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    # 3. HTML 버튼 클릭 감지를 위한 투명한 스트림릿 버튼 (작은 점 방지용)
+    # 실제 클릭은 HTML 버튼이 받지만, 상태 변경은 이 버튼이 트리거함
+    if st.button("💬", key="chat_button"):
         st.session_state.chat_open = not st.session_state.chat_open
         st.rerun()
 
-    # 팝업 대화창 로직
+    # 4. 화면에 보일 실제 커스텀 버튼 (HTML)
+    # 클릭 시 위에서 만든 chat_button을 클릭하게 만드는 JS 코드 포함
+    st.markdown(f"""
+        <div class="custom-float-btn" onclick="document.querySelector('button[key=\'chat_button\']').click()">
+            💬
+        </div>
+    """, unsafe_allow_html=True)
+
+    # 5. 팝업창 렌더링
     if st.session_state.chat_open:
-        # 팝업 외형 (HTML)
-        st.markdown('<div class="chat-popup-window">', unsafe_allow_html=True)
-        st.markdown('<div class="chat-header">🤖 OTT 분석 어드바이저</div>', unsafe_allow_html=True)
+        st.markdown("""
+            <div class="chat-popup">
+                <div style="background-color:#FF4B4B; padding:15px; color:white; font-weight:bold; text-align:center;">
+                    🤖 OTT 분석 어드바이저
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
 
-        # 메시지 출력 영역
-        msg_container = st.container()
-        with msg_container:
-            # 입력창 공간 확보를 위해 height 지정
-            inner_chat = st.container(height=420)
-            with inner_chat:
-                for message in st.session_state.messages:
-                    with st.chat_message(message["role"]):
-                        st.markdown(message["content"])
+        msg_window = st.container(height=410)
+        with msg_window:
+            for message in st.session_state.messages:
+                with st.chat_message(message["role"]):
+                    st.markdown(message["content"])
 
-        # 입력창 (CSS가 팝업 내부로 위치를 고정함)
         if prompt := st.chat_input("질문을 입력하세요", key="popup_input"):
             st.session_state.messages.append({"role": "user", "content": prompt})
-            with inner_chat:
+            with msg_window:
                 with st.chat_message("user"):
                     st.markdown(prompt)
-                with st.chat_message("assistant"):
-                    try:
-                        bot = get_chatbot()
-                        response = bot.get_response(prompt, st.session_state.messages[:-1])
-                        st.markdown(response)
-                        st.session_state.messages.append({"role": "assistant", "content": response})
-                    except:
-                        st.error("API 연결을 확인해주세요.")
+                try:
+                    bot = get_chatbot()
+                    response = bot.get_response(prompt, st.session_state.messages[:-1])
+                    st.session_state.messages.append({"role": "assistant", "content": response})
+                except:
+                    st.error("API 연결 실패")
             st.rerun()
-        
-        st.markdown('</div>', unsafe_allow_html=True)
 
 # 4. 메인 실행부
 def main():
@@ -154,6 +209,7 @@ def main():
         st.title("💸 우리 단지 디지털 월세 리포트")
         if not df.empty:
             render_visual_dashboard(df)
+
     elif menu == "Survey Page":
         show_normal_form()
 
