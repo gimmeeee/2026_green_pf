@@ -56,24 +56,21 @@ def render_visual_dashboard(df):
 
 # 3. 플로팅 챗봇 UI (위치 고정 특화)
 def render_chatbot_ui():
+    # 1. 세션 상태 초기화 (상태 유실 방지)
     if "chat_open" not in st.session_state:
         st.session_state.chat_open = False
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
-    # 1. CSS: 버튼의 위치와 스타일을 무조건 '오른쪽 아래'로 고정
-    # Streamlit의 모든 버튼 중 'HIDDEN'이라는 글자를 가진 놈을 타겟팅합니다.
+    # 버튼 클릭 시 상태를 반전시키는 콜백 (동기화 후에도 상태 유지)
+    def handle_fab_click():
+        st.session_state.chat_open = not st.session_state.chat_open
+
+    # 2. CSS: 버튼 디자인 복구 및 입력창 위치 '절대' 고정
     st.markdown("""
         <style>
-        /* 모든 버튼 중 텍스트가 HIDDEN인 버튼 찾기 */
-        button div p {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        /* 버튼 컨테이너 위치 강제 고정 */
-        .stButton button {
+        /* 빨간 원형 버튼 디자인 */
+        div.stButton > button[key="fixed_fab_btn"] {
             position: fixed !important;
             bottom: 30px !important;
             right: 30px !important;
@@ -82,28 +79,19 @@ def render_chatbot_ui():
             border-radius: 50% !important;
             background-color: #FF4B4B !important;
             color: white !important;
-            z-index: 999999 !important;
+            z-index: 1000001 !important;
             border: none !important;
             box-shadow: 0 4px 15px rgba(0,0,0,0.3) !important;
-            transition: transform 0.2s ease !important;
         }
-
-        /* 버튼 안의 텍스트 'HIDDEN'을 '💬'로 교체 */
-        .stButton button p {
-            font-size: 0 !important; /* 원래 글자 숨기기 */
-        }
-        .stButton button p::before {
+        div.stButton > button[key="fixed_fab_btn"] p { display: none !important; }
+        div.stButton > button[key="fixed_fab_btn"]::after {
             content: "💬" !important;
             font-size: 30px !important;
+            display: block !important;
         }
 
-        .stButton button:hover {
-            transform: scale(1.1) !important;
-            background-color: #FF3333 !important;
-        }
-
-        /* 대화창 팝업 레이아웃 */
-        .chat-window {
+        /* 팝업창 프레임 */
+        .chat-container-fixed {
             position: fixed;
             bottom: 110px;
             right: 30px;
@@ -112,14 +100,25 @@ def render_chatbot_ui():
             background: white;
             border-radius: 20px;
             box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-            z-index: 999998;
+            z-index: 999990;
             border: 1px solid #eee;
             display: flex;
             flex-direction: column;
-            overflow: hidden;
         }
 
-        /* 채팅 입력바 위치 조정 */
+        /* 메시지 영역 강제 귀속 */
+        div[data-testid="stVerticalBlock"] > div:has(div[data-testid="stChatMessage"]) {
+            position: fixed !important;
+            bottom: 185px !important;
+            right: 40px !important;
+            width: 350px !important;
+            height: 380px !important;
+            z-index: 999995 !important;
+            overflow-y: auto !important;
+            background: white !important;
+        }
+
+        /* 입력창 위치 절대 고정 (사라짐 방지) */
         div[data-testid="stChatInput"] {
             position: fixed !important;
             bottom: 125px !important;
@@ -130,42 +129,42 @@ def render_chatbot_ui():
         </style>
     """, unsafe_allow_html=True)
 
-    # 2. 실제 버튼 생성 (이 버튼이 위 CSS에 의해 오른쪽 아래로 이동함)
-    # 버튼을 사이드바 맨 아래나 메인 맨 아래 어디에 두든 CSS가 끌어당깁니다.
-    st.button("HIDDEN", key="hidden_toggle")
-    
-    if st.session_state.get("hidden_toggle"):
-        st.session_state.chat_open = not st.session_state.chat_open
-        st.rerun()
+    # 3. 플로팅 버튼 (on_click으로 리런 시에도 상태 보존)
+    st.button("CHAT", key="fixed_fab_btn", on_click=handle_fab_click)
 
-    # 3. 팝업창 UI
+    # 4. 팝업창 활성화 시 내용 렌더링
     if st.session_state.chat_open:
+        # 헤더와 프레임
         st.markdown("""
-            <div class="chat-window">
-                <div style="background-color:#FF4B4B; padding:15px; color:white; font-weight:bold; text-align:center;">
+            <div class="chat-container-fixed">
+                <div style="background-color:#FF4B4B; padding:15px; color:white; font-weight:bold; text-align:center; border-radius: 20px 20px 0 0;">
                     🤖 OTT 분석 어드바이저
                 </div>
             </div>
         """, unsafe_allow_html=True)
 
-        msg_area = st.container(height=390)
-        with msg_area:
-            if not st.session_state.messages:
-                st.info("안녕하세요! 무엇이든 물어보세요.")
-            for message in st.session_state.messages:
-                with st.chat_message(message["role"]):
-                    st.markdown(message["content"])
+        # 메시지 및 입력 위젯
+        # container를 명시적으로 사용하여 위젯이 사라지지 않게 묶음
+        with st.container():
+            # 메시지 출력
+            msg_box = st.container()
+            with msg_box:
+                if not st.session_state.messages:
+                    st.info("데이터 동기화가 완료되었습니다. 분석을 시작할까요?")
+                for message in st.session_state.messages:
+                    with st.chat_message(message["role"]):
+                        st.markdown(message["content"])
 
-        if prompt := st.chat_input("질문을 입력하세요", key="popup_input"):
-            st.session_state.messages.append({"role": "user", "content": prompt})
-            # 챗봇 로직 수행...
-            try:
-                bot = get_chatbot()
-                response = bot.get_response(prompt, st.session_state.messages[:-1])
-                st.session_state.messages.append({"role": "assistant", "content": response})
-            except:
-                st.error("연결 실패")
-            st.rerun()
+            # 입력창 (팝업이 열려있을 때만 렌더링)
+            if prompt := st.chat_input("질문을 입력하세요", key="active_chat_input"):
+                st.session_state.messages.append({"role": "user", "content": prompt})
+                try:
+                    bot = get_chatbot() # SkinChatbot 클래스 호출
+                    response = bot.get_response(prompt, st.session_state.messages[:-1])
+                    st.session_state.messages.append({"role": "assistant", "content": response})
+                except Exception as e:
+                    st.error(f"대화 에러: {e}")
+                st.rerun()
 
 # 4. 메인 실행부
 def main():
