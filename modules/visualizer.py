@@ -184,28 +184,64 @@ class SkinVisualizer:
         st.markdown("##### [시각화 1] 해지 트리거 분석")
         col1, col2 = st.columns(2)
         
+# 공통 레이아웃 설정
+        common_layout = dict(
+            coloraxis_showscale=False,
+            showlegend=False,
+            xaxis_title="응답 수",
+            yaxis_title=None,
+            height=450,
+            margin=dict(l=220, r=20, t=50, b=50) # 긴 텍스트를 위한 왼쪽 여백 통일
+        )
+
+        # --- [col1] 전체 해지 사유 (복수 응답) ---
         with col1:
             if 'ott_cancel_reason' in self.df.columns:
+                # 데이터 처리
                 reasons = self.df['ott_cancel_reason'].astype(str).str.split(',').explode().str.strip()
-                reasons = reasons[reasons.str.lower() != 'nan'] # nan 제외
-
+                reasons = reasons[reasons.str.lower() != 'nan']
                 counts = reasons.value_counts().sort_values(ascending=True)
-
-                fig = px.bar(counts, orientation='h', title="전체 해지 사유 (중복 응답)", 
+                
+                # 차트 생성
+                fig = px.bar(counts, orientation='h', title="전체 해지 사유 (복수 응답)", 
                              color=counts.values, color_continuous_scale='Reds')
-                fig.update_layout(coloraxis_showscale=False, showlegend=False, xaxis_title="응답 수", yaxis_title=None)
+                
+                # 레이아웃 적용
+                line_widths = [1 if val <= 5 else 0 for val in counts.values]
+                fig.update_traces(
+                    marker_line_width=line_widths, # 계산된 리스트 적용
+                    marker_line_color='lightgrey', # 연한 회색 테두리
+                    text=counts.values,
+                    textposition='outside',
+                    cliponaxis=False
+                )
+                fig.update_layout(**common_layout)
+                fig.update_yaxes(automargin=True)
                 st.plotly_chart(fig, use_container_width=True)
-
+                
+        # --- [col2] 결정적 해지 사유 (단수 응답) ---
         with col2:
             if 'ott_cancel_reason_primary' in self.df.columns:
-                primary_df = self.df[self.df['ott_cancel_reason_primary'].astype(str).str.lower() != 'nan']
-                # 결정적 사유도 빈도순 정렬 (높은 값이 위로)
-                counts_p = primary_df['ott_cancel_reason_primary'].value_counts().sort_values(ascending=True)
+                # 데이터 처리 (primary 컬럼 기준)
+                primary_series = self.df['ott_cancel_reason_primary'].astype(str).str.strip()
+                primary_series = primary_series[primary_series.str.lower() != 'nan']
+                counts_p = primary_series.value_counts().sort_values(ascending=True)
                 
-                # 가로 막대 차트로 변경
-                fig_p = px.bar(counts_p, orientation='h', title="결정적 해지 사유 (단일 선택)",
+                # 차트 생성
+                fig_p = px.bar(counts_p, orientation='h', title="결정적 해지 사유 (단일 응답)",
                                color=counts_p.values, color_continuous_scale='Blues')
-                fig_p.update_layout(coloraxis_showscale=False, showlegend=False, xaxis_title="응답 수", yaxis_title=None, height=450)
+                
+                # 레이아웃 적용
+                line_widths = [1 if val <= 5 else 0 for val in counts.values]
+                fig_p.update_traces(
+                    marker_line_width=line_widths, # 계산된 리스트 적용
+                    marker_line_color='lightgrey', # 연한 회색 테두리
+                    text=counts.values,
+                    textposition='outside',
+                    cliponaxis=False
+                )
+                fig_p.update_layout(**common_layout)
+                fig_p.update_yaxes(automargin=True)
                 st.plotly_chart(fig_p, use_container_width=True)
 
         if 'ott_cancel_reason_primary' in self.df.columns:
