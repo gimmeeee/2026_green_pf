@@ -37,10 +37,10 @@ def render_visual_dashboard(df):
 
 # 3. 플로팅 챗봇 UI (위치 고정 특화)
 def render_chatbot_ui():
-    # CSS: 스크롤과 무관하게 화면 우측 하단에 물리적으로 고정
+    # CSS: 아이콘과 팝업을 화면에 물리적으로 박아버림 (스크롤 영향 0)
     st.markdown("""
         <style>
-        /* [1] 챗봇 아이콘: 화면 우측 하단 절대 고정 */
+        /* 1. 플로팅 버튼: 우측 하단 절대 고정 */
         div.stButton > button[key="floating_chat_icon"] {
             position: fixed !important;
             bottom: 30px !important;
@@ -51,39 +51,42 @@ def render_chatbot_ui():
             background-color: #FF4B4B !important;
             color: white !important;
             font-size: 30px !important;
-            z-index: 999999 !important; /* 모든 요소보다 위에 */
+            z-index: 1000000 !important; /* 최상단 레이어 */
             box-shadow: 0 4px 20px rgba(0,0,0,0.3) !important;
             border: none !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
         }
 
-        /* [2] 팝업창 본체: 아이콘 바로 위에 고정 */
+        /* 2. 대화창 팝업: 아이콘 바로 위에 고정 */
         .chat-popup-window {
-            position: fixed;
-            bottom: 110px;
-            right: 30px;
-            width: 380px;
-            height: 600px;
-            background-color: white;
-            border-radius: 20px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.25);
-            z-index: 999997;
-            display: flex;
-            flex-direction: column;
-            border: 1px solid #f0f0f0;
-            overflow: hidden;
+            position: fixed !important;
+            bottom: 110px !important;
+            right: 30px !important;
+            width: 380px !important;
+            height: 600px !important;
+            background-color: white !important;
+            border-radius: 20px !important;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2) !important;
+            z-index: 999999 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            border: 1px solid #eee !important;
+            overflow: hidden !important;
         }
 
-        /* [3] 입력창: 브라우저 바닥이 아닌 팝업창 하단에 강제 고정 */
+        /* 3. 입력창: 팝업창 내부 하단에 강제 고정 */
         div[data-testid="stChatInput"] {
             position: fixed !important;
             bottom: 125px !important; 
             right: 45px !important;
             width: 350px !important;
-            z-index: 999998 !important;
+            z-index: 1000001 !important;
             background-color: white !important;
         }
         
-        /* 팝업 헤더 */
+        /* 팝업 헤더 스타일 */
         .chat-header {
             background-color: #FF4B4B;
             padding: 15px;
@@ -99,29 +102,31 @@ def render_chatbot_ui():
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
-    # 플로팅 아이콘 (스크롤을 내려도 따라다님)
+    # 💬 플로팅 아이콘 생성
     if st.button("💬", key="floating_chat_icon"):
         st.session_state.chat_open = not st.session_state.chat_open
         st.rerun()
 
-    # 팝업 열기
+    # 팝업 대화창 로직
     if st.session_state.chat_open:
+        # 팝업 외형 (HTML)
         st.markdown('<div class="chat-popup-window">', unsafe_allow_html=True)
         st.markdown('<div class="chat-header">🤖 OTT 분석 어드바이저</div>', unsafe_allow_html=True)
 
-        # 메시지 영역 (높이 조절로 입력창 공간 확보)
+        # 메시지 출력 영역
         msg_container = st.container()
         with msg_container:
-            inner_box = st.container(height=420)
-            with inner_box:
+            # 입력창 공간 확보를 위해 height 지정
+            inner_chat = st.container(height=420)
+            with inner_chat:
                 for message in st.session_state.messages:
                     with st.chat_message(message["role"]):
                         st.markdown(message["content"])
 
-        # 입력창 (CSS가 팝업 안으로 위치를 강제 조정한 상태)
+        # 입력창 (CSS가 팝업 내부로 위치를 고정함)
         if prompt := st.chat_input("질문을 입력하세요", key="popup_input"):
             st.session_state.messages.append({"role": "user", "content": prompt})
-            with inner_box:
+            with inner_chat:
                 with st.chat_message("user"):
                     st.markdown(prompt)
                 with st.chat_message("assistant"):
@@ -131,7 +136,7 @@ def render_chatbot_ui():
                         st.markdown(response)
                         st.session_state.messages.append({"role": "assistant", "content": response})
                     except:
-                        st.error("API 연결 실패")
+                        st.error("API 연결을 확인해주세요.")
             st.rerun()
         
         st.markdown('</div>', unsafe_allow_html=True)
@@ -143,7 +148,7 @@ def main():
 
     # 사이드바 메뉴
     st.sidebar.title("🧭 메뉴")
-    menu = st.sidebar.selectbox("페이지", ["Dashboard Home", "Survey Page"])
+    menu = st.sidebar.selectbox("페이지", ["Dashboard Home", "Survey Page", "부록"])
 
     if menu == "Dashboard Home":
         st.title("💸 우리 단지 디지털 월세 리포트")
