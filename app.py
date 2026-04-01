@@ -47,7 +47,6 @@ def render_visual_dashboard(df):
     st.header("2️⃣ OTT 집중 분석: 해지 사유와 효율성")
     viz.plot_cancel_trigger_analysis()
     viz.plot_ott_usage_efficiency()
-    viz.plot_segment_reason_correlation()
     st.divider()
     
     # Part 3: Hypothesis & Expansion
@@ -236,7 +235,7 @@ def render_chatbot_ui():
 # 4. 메인 실행부
 def main():
     st.set_page_config(page_title="Digital Rent Dashboard", layout="wide", page_icon="💸")
-
+    st.markdown('<html lang="ko">', unsafe_allow_html=True)
     st.sidebar.title("🧭 단지 안내소")
     
     # 데이터 새로고침 로직 강화
@@ -267,7 +266,7 @@ def main():
     menu = st.sidebar.selectbox("메뉴", ["Dashboard Home", "Survey Page", "부록"])
 
     if menu == "Dashboard Home":
-        st.write("# 💸 우리 단지 디지털 월세 리포트")
+        st.write("# 우리 단지 디지털 월세 리포트 💸")
         if not df.empty:
             render_visual_dashboard(df)
         else:

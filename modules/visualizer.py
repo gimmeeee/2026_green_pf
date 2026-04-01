@@ -119,63 +119,58 @@ class SkinVisualizer:
         with right_col:
             st.markdown(f"### 🎯 핵심 타겟 리포트")
             st.info(f"💡 전체 응답자 평균 사용 의향: **{avg_intent:.1f}점**")
-            st.success(f"🚀 분석 대상: 사용 의향 5점 이상 고의향 유저 (**{len(high_intent)}명**)")
+            st.success(f"🚀 분석 대상: 사용 의향 **5점 이상** 고의향 유저 ({len(high_intent)}명)")
             
             if not high_intent.empty:
-                # 1. 메인 페르소나 데이터 추출
+                # [1. 데이터 추출 - 기존 로직 동일]
                 persona_counts = high_intent.groupby(['gender', 'job', 'age_group']).size().reset_index(name='count')
                 top_persona_row = persona_counts.loc[persona_counts['count'].idxmax()]
+                main_sub = high_intent[(high_intent['gender'] == top_persona_row['gender']) & (high_intent['job'] == top_persona_row['job']) & (high_intent['age_group'] == top_persona_row['age_group'])]
                 
-                # [추가] 메인 타겟에 해당하는 데이터 필터링
-                main_sub = high_intent[
-                    (high_intent['gender'] == top_persona_row['gender']) & 
-                    (high_intent['job'] == top_persona_row['job']) & 
-                    (high_intent['age_group'] == top_persona_row['age_group'])
-                ]
+                group_stats = high_intent.groupby(['gender', 'job', 'age_group']).agg({'usage_intent': 'mean', 'Respondent ID': 'count'}).reset_index()
+                efficient_targets = group_stats[(group_stats['usage_intent'] > avg_intent + 0.5) & (group_stats['Respondent ID'] >= 2)].sort_values(by='usage_intent', ascending=False)
 
-                # 2. 고효율 페르소나 데이터 추출
-                group_stats = high_intent.groupby(['gender', 'job', 'age_group']).agg({
-                    'usage_intent': 'mean',
-                    'Respondent ID': 'count'
-                }).reset_index()
-                
-                efficient_targets = group_stats[
-                    (group_stats['usage_intent'] > avg_intent + 0.5) & 
-                    (group_stats['Respondent ID'] >= 2)
-                ].sort_values(by='usage_intent', ascending=False)
-                
-                # --- 메인 타겟 출력 ---
-                st.markdown(f"""
-                **1. 메인 볼륨 타겟 (Mass)**
-                - **그룹**: {top_persona_row['gender']} {top_persona_row['job']} ({top_persona_row['age_group']})
-                """)
-                
-                # 주관식 답변 출력 (함수 호출)
-                main_v_msgs = self.get_group_comments(main_sub) 
-                for msg in main_v_msgs:
-                    st.caption(f"🗨️ \"{msg}\"")
+                # 숫자 너비 고정 (글자 시작 위치를 맞추기 위함)
+                num_width = "28px" 
 
-                # --- 고효율 타겟 출력 ---
+                # --- 2. 메인 타겟 HTML (말풍선 들여쓰기 제거 및 라인 정렬) ---
+                main_v_msgs = self.get_group_comments(main_sub)
+                # 말풍선도 이제 숫자 너비(num_width)만큼만 들여써서 타이틀과 라인을 맞춤
+                main_msgs_html = "".join(['<p style="margin: 4px 0; color: #94a3b8; font-size: 0.82rem; line-height: 1.5;">🗨️ "' + str(msg) + '"</p>' for msg in main_v_msgs])
+                
+                main_target_html = (
+                    '<div style="margin-bottom: 35px; display: flex; align-items: flex-start;">'
+                        '<span style="font-weight: bold; color: white; font-size: 1.1rem; min-width: ' + num_width + '; padding-top: 2px;">1.</span>'
+                        '<div style="flex: 1;">'
+                            '<p style="margin: 0 0 4px 0; font-weight: bold; color: white; font-size: 1.1rem;">메인 볼륨 타겟 (Mass)</p>'
+                            '<p style="margin: 0 0 10px 0; color: #cbd5e1; font-size: 0.95rem;">' + str(top_persona_row['gender']) + ' ' + str(top_persona_row['job']) + ' (' + str(top_persona_row['age_group']) + ')</p>'
+                            '<div>' + main_msgs_html + '</div>'
+                        '</div>'
+                    '</div>'
+                )
+
+                # --- 3. 고효율 타겟 HTML (말풍선 들여쓰기 제거 및 라인 정렬) ---
+                eff_target_html = ""
                 if not efficient_targets.empty:
                     eff_row = efficient_targets.iloc[0]
+                    eff_sub = high_intent[(high_intent['gender'] == eff_row['gender']) & (high_intent['job'] == eff_row['job']) & (high_intent['age_group'] == eff_row['age_group'])]
+                    eff_v_msgs = self.get_group_comments(eff_sub)
+                    eff_msgs_html = "".join(['<p style="margin: 4px 0; color: #94a3b8; font-size: 0.82rem; line-height: 1.5;">🗨️ "' + str(msg) + '"</p>' for msg in eff_v_msgs])
                     
-                    # [추가] 고효율 타겟에 해당하는 데이터 필터링
-                    eff_sub = high_intent[
-                        (high_intent['gender'] == eff_row['gender']) & 
-                        (high_intent['job'] == eff_row['job']) &
-                        (high_intent['age_group'] == eff_row['age_group'])
-                    ]
+                    eff_target_html = (
+                        '<div style="display: flex; align-items: flex-start;">'
+                            '<span style="font-weight: bold; color: white; font-size: 1.1rem; min-width: ' + num_width + '; padding-top: 2px;">2.</span>'
+                            '<div style="flex: 1;">'
+                                '<p style="margin: 0 0 4px 0; font-weight: bold; color: white; font-size: 1.1rem;">고효율 집중 타겟 🚩</p>'
+                                '<p style="margin: 0 0 10px 0; color: #cbd5e1; font-size: 0.95rem;">' + str(eff_row['gender']) + ' ' + str(eff_row['job']) + ' (' + str(eff_row['age_group']) + ') | <b>평균 ' + "{:.1f}".format(eff_row['usage_intent']) + '점</b></p>'
+                                '<div>' + eff_msgs_html + '</div>'
+                            '</div>'
+                        '</div>'
+                    )
 
-                    st.markdown(f"""
-                    **2. 고효율 집중 타겟 (Niche & High-Value) 🚩**
-                    - **그룹**: **{eff_row['gender']} {eff_row['job']} ({eff_row['age_group']})**
-                    - **평균 의향**: **{eff_row['usage_intent']:.1f}점**
-                    """)
-                    
-                    # 주관식 답변 출력 (함수 호출)
-                    eff_v_msgs = self.get_group_comments(eff_sub) 
-                    for msg in eff_v_msgs:
-                        st.caption(f"🗨️ \"{msg}\"")
+                # --- 4. 최종 출력 ---
+                final_html = '<div style="padding-left: 30px; font-family: sans-serif;">' + main_target_html + eff_target_html + '</div>'
+                st.markdown(final_html, unsafe_allow_html=True)
                 
             else:
                 st.warning("분석할 데이터가 부족합니다.")
@@ -259,27 +254,48 @@ class SkinVisualizer:
             # 매칭되는 솔루션 문구 (없으면 기본값)
             target_solution = solution_dict.get(top_primary, "유저의 Pain-point를 즉각 해결하는 맞춤형 관리 도구")
 
-            st.info(f"🎯 **Insight: 현재 해지 결정의 핵심 트리거는 '{top_primary}'입니다.**")
+            st.markdown("<br>", unsafe_allow_html=True)
             
-            st.markdown(f"""
-            유저가 해지를 결심하는 본질적인 이유는 '내가 지불하는 비용만큼 충분히 이용하고 있는가?'라는 **효율성의 문제**에서 시작됩니다.<br>
-            이는 우리가 [<b>{target_solution}</b>]을 제공해야 한다는 인사이트가 될 수 있습니다.
-            """, unsafe_allow_html=True)
+            c_indent = "28px"
 
-            st.markdown("<br><br>", unsafe_allow_html=True)
+            full_html = (
+                f'<div style="background-color: #1e293b; padding: 20px; border-radius: 12px; border-left: 5px solid #60a5fa; margin-bottom: 25px; font-family: sans-serif;">'
+                    f'<p style="color: #60a5fa; font-weight: bold; margin: 0 0 12px 0; font-size: 0.95rem; letter-spacing: 0.5px;">🎯 핵심 트리거 분석 결과</p>'
+                    f'<div style="padding-left: {c_indent};">'
+                        f'<p style="color: white; font-size: 1.1rem; margin: 0 0 15px 0; line-height: 1.5;">현재 유저들이 해지를 결정하는 결정적 요인은 <span style="color: #f8fafc; font-weight: bold; border-bottom: 2px solid #60a5fa;">\'{top_primary}\'</span>입니다.</p>'
+                        f'<div style="border-top: 1px solid #334155; padding-top: 15px;">'
+                            f'<p style="margin: 0 0 4px 0; color: #94a3b8; font-size: 0.92rem; line-height: 1.6;">이는 "내가 지불하는 비용만큼 충분히 이용하고 있는가?"라는 <span style="color: #cbd5e1; font-weight: bold;">\'효율성\'</span>의 문제에서 시작됩니다.</p>'
+                            f'<p style="margin: 0; color: #94a3b8; font-size: 0.92rem; line-height: 1.6;"><span style="color: #60a5fa; font-weight: bold;">[{target_solution}]</span>을 최우선으로 제공해야 한다는 인사이트기 될 수 있습니다.</p>'
+                        f'</div>'
+                    f'</div>'
+                f'</div>'
+            )
+
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown(full_html, unsafe_allow_html=True)
 
         else:
             st.warning("데이터에 'ott_cancel_reason_primary' 컬럼이 없습니다.")
 
     def plot_ott_usage_efficiency(self):
-        st.markdown("##### [시각화 2] 구독 효율성 분석")
+        st.markdown("---")
+        st.markdown("""
+            <div style="margin-bottom: 6px;">
+                <h5 style="margin-bottom: 2px; padding-bottom: 0;">[시각화 2] 구독 효율성 심층 분석</h5>
+                <p style="color: #94a3b8; font-size: 0.8rem; margin: 0; padding: 0;">※ 기준: 유저별 OTT 구독료 합계 및 주간 시청 시간 기반 산출</p>
+            </div>
+        """, unsafe_allow_html=True)
 
-        with st.expander("💡 시청 쿼터(Engagement Level) 정의 및 분석 기준", expanded=False):
-            c1, c2, c3 = st.columns(3)
-            c1.markdown("**🌱 Light **\n\n주 3시간 미만 시청.\n가성비가 낮고 이탈 리스크가 높음")
-            c2.markdown("**🌿 Middle **\n\n주 3~12시간 시청.\n안정적인 이용 행태를 보이는 메인 볼륨")
-            c3.markdown("**🔥 Heavy **\n\n주 12시간 이상 시청.\n다수 서비스 구독 중이나 시간당 비용은 최저")
-            st.caption("※ 효율성 분석은 유저가 지불하는 모든 OTT 구독료 합계(넷플릭스, 티빙 등)를 기준으로 산출되었습니다.")
+        q_col1, q_col2, q_col3, empty_space = st.columns([1, 1, 1.5, 5])
+        with q_col1:
+            st.markdown("<p style='margin-bottom:0px;'><small>🟠 <b>Light</b>: 주 3h 미만</small></p>", unsafe_allow_html=True)
+        with q_col2:
+            st.markdown("<p style='margin-bottom:0px;'><small>⚫ <b>Middle</b>: 주 3-12h</small></p>", unsafe_allow_html=True)
+        with q_col3:
+            st.markdown("<p style='margin-bottom:0px;'><small>🔴 <b>Heavy</b>: 주 12h 이상</small></p>", unsafe_allow_html=True)
+        
+        st.write("") # 미세한 간격 조정
+        st.markdown("---")
 
         # 1. 총 구독료 계산 (제시된 모든 OTT 컬럼 합산)
         fee_cols = [
@@ -313,145 +329,172 @@ class SkinVisualizer:
             )
 
         # 2. 차트 레이아웃 분할 (좌: 분포 막대, 우: 효율성 산점도)
-        col_left, col_right = st.columns([1, 1.5])
+        col_left, col_right = st.columns([1, 1.3], vertical_alignment="center")
 
         with col_left:
-            # 유저 쿼터별 분포 (세로 막대)
-            if 'user_seg' in self.df.columns:
-                order = ['Light', 'Middle', 'Heavy']
-                counts = self.df['user_seg'].value_counts().reindex(order).fillna(0).reset_index()
-                counts.columns = ['Segment', 'Count']
-                
-                fig_bar = px.bar(
-                    counts, x='Segment', y='Count', color='Segment',
-                    text='Count',
-                    color_discrete_map={'Light': '#cbd5e1', 'Middle': '#94a3b8', 'Heavy': '#E50914'},
-                    title="시청 쿼터별 유저 분포"
-                )
+            cancel_exp_df = self.df[self.df['ott_cancel'] == '예'].copy()
+            target_reason = "접속 빈도가 낮음을 인지해서"
+            # 중복 응답 컬럼에서 키워드 포함 여부 체크 (복수응답 기준)
+            cancel_exp_df['has_target_reason'] = cancel_exp_df['ott_cancel_reason'].fillna('').apply(
+                lambda x: 1 if target_reason in str(x) else 0
+            )
+            
+            l_stats = cancel_exp_df.groupby('user_seg', observed=True).agg(
+                user_count=('Respondent ID', 'count'),
+                reason_rate=('has_target_reason', lambda x: x.mean() * 100)
+            ).reset_index()
 
-                fig_bar.update_traces(texttemplate='%{text}명', textposition='outside')
-                fig_bar.update_layout(showlegend=False, yaxis_title="응답자 수", height=450)
-                st.plotly_chart(fig_bar, use_container_width=True)
+            fig_left = go.Figure()
+
+            # 막대: 유저 분포 (왼쪽 축)
+            fig_left.add_trace(go.Bar(
+                x=l_stats['user_seg'], y=l_stats['user_count'],
+                name='해지 경험자(명)',
+                marker_color=['#F1AC90', '#94a3b8', '#FF6D74'],
+                text=l_stats['user_count'], 
+                textposition='inside', insidetextanchor='start',
+                yaxis='y1'
+            ))
+
+            # 선: 해지 사유 응답률 (오른쪽 축)
+            fig_left.add_trace(go.Scatter(
+                x=l_stats['user_seg'], y=l_stats['reason_rate'],
+                name='사유 응답률(%)',
+                mode='lines+markers+text',
+                line=dict(color='#1f77b4', width=3),
+                text=l_stats['reason_rate'].round(1).astype(str) + '%',
+                textposition='top center',
+                yaxis='y2'
+            ))
+
+            fig_left.update_layout(
+                height=480,  # 축 제목 공간을 고려해 높이를 약간 증액
+                # 하단 마진(b)을 우측 차트와 동일하게 맞추고, 축 제목(title) 공간 확보
+                margin=dict(l=50, r=20, t=80, b=80), 
+                template="plotly_dark",
+                xaxis=dict(title="유저 쿼터", title_font=dict(size=14)),
+                yaxis=dict(title="해지 경험자 (명)", showgrid=False),
+                yaxis2=dict(title="사유 응답률 (%)", overlaying='y', side="right", range=[0, 150]),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+            )
+            st.plotly_chart(fig_left, use_container_width=True)
 
         with col_right:
             # 실제 가성비 산점도
             y_limit = self.df['cost_per_hour'].quantile(0.95) * 1.1
-            fig_scat = px.scatter(
+            fig_right = px.scatter(
                 self.df, x='ott_time_total', y='cost_per_hour',
-                color='user_seg' if 'user_seg' in self.df.columns else None,
-                size='total_ott_fee',
-                hover_data=['total_ott_fee', 'gender', 'age_group'],
-                color_discrete_map={'Light': '#cbd5e1', 'Middle': '#94a3b8', 'Heavy': '#E50914'},
-                labels={'ott_time_total': '주간 시청 시간 (h)', 'cost_per_hour': '시간당 비용 (원/h)'},
-                title="시청 시간 대비 구독 효율성 (가성비 곡선)"
+                color='user_seg', size='total_ott_fee',
+                color_discrete_map={'Light': "#F1AC90", 'Middle': '#94a3b8', 'Heavy': "#FF6D74"},
+                category_orders={"user_seg": ["Light", "Middle", "Heavy"]}, # 범례 순서 고정
+                labels={'ott_time_total': '주간 시청 시간 (h)', 'cost_per_hour': '시간당 비용 (원/h)', 'user_seg': '유저 쿼터'},
+                title="<b>[전체 유저] 시청 시간 대비 가성비 곡선</b>"
             )
 
-            fig_scat.update_layout(
-                height=500,
-                # 여백(margin)을 충분히 주어 축 라벨이 잘리지 않게 함
-                margin=dict(l=50, r=20, t=60, b=50),
-                # 범례를 차트 상단으로 옮겨서 가로 공간 확보
-                legend=dict(
-                    orientation="h",
-                    yanchor="bottom",
-                    y=1.02,
-                    xanchor="right",
-                    x=1
-                )
+            fig_right.update_layout(
+                height=480, # 좌측과 동일하게 맞춤
+                # 하단 마진(b)을 좌측과 동일하게 80으로 통일
+                margin=dict(l=50, r=50, t=80, b=80),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                template="plotly_dark"
             )
-            
-            # 축 범위 조정
-            fig_scat.update_yaxes(range=[0, y_limit], gridcolor='#f0f0f0')
-            fig_scat.update_xaxes(gridcolor='#f0f0f0')
-            
-            st.plotly_chart(fig_scat, use_container_width=True)
+            fig_right.update_yaxes(range=[0, y_limit])
+            st.plotly_chart(fig_right, use_container_width=True)
 
         # 3. 하단 요약 지표 및 인사이트
-        avg_total_fee = self.df['total_ott_fee'].mean()
-        
+        st.markdown("---")
+        avg_eff = self.df['cost_per_hour'].mean()
+        eff_stats = self.df.groupby('user_seg', observed=True)['cost_per_hour'].mean()
+
         m1, m2, m3 = st.columns(3)
-        m1.metric("평균 총 구독료", f"{int(avg_total_fee):,}원")
-        
-        if 'user_seg' in self.df.columns:
-            eff_stats = self.df.groupby('user_seg')['cost_per_hour'].mean()
-            if 'Heavy' in eff_stats:
-                m2.metric("Heavy 평균 가성비", f"{int(eff_stats['Heavy']):,}원/h", "최고 효율")
-            if 'Light' in eff_stats:
-                m3.metric("Light 평균 가성비", f"{int(eff_stats['Light']):,}원/h", "최저 효율", delta_color="inverse")
 
-        st.success(f"""
-        **💡 분석 결과 요약:**
-        - 유저들은 평균적으로 월 **{int(avg_total_fee):,}원**의 OTT 구독료를 지불하고 있습니다.
-        - **Heavy 유저**는 다소 높은 구독료를 지불함에도 불구하고, 압도적인 이용량 덕분에 가장 낮은 시간당 비용을 보입니다.
-        - **Light 유저**의 경우 시간당 비용이 {int(eff_stats['Light']):,}원으로 매우 높아, 경제적 관점에서 가장 먼저 구독 해지를 고려할 확률이 높은 집단입니다.
-        """)
+        indent_width = "22px" 
 
-    def plot_segment_reason_correlation(self):
-        """유저 세그먼트(시청 쿼터)별 해지 사유 연결 분석"""
-        st.markdown("##### [시각화 3] 시청 쿼터별 해지 사유 심층 연결")
-        
-        # 1. 데이터 준비 여부 확인
-        if 'user_seg' not in self.df.columns or 'ott_cancel_reason_primary' not in self.df.columns:
-            st.warning("세그먼트 데이터 또는 해지 사유 데이터가 부족합니다.")
-            return
+        with m1:
+            st.markdown(f"""
+                <div style="display: flex; justify-content: center; width: 100%;">
+                    <div style="text-align: left;">
+                        <p style="color: #94a3b8; font-size: 0.9rem; margin: 0 0 4px 0;">📊 전체 평균 가성비</p>
+                        <div style="display: flex; align-items: baseline; padding-left: {indent_width};">
+                            <span style="color: white; font-size: 1.8rem; font-weight: bold;">{int(avg_eff):,}</span>
+                            <span style="color: white; font-size: 1rem; margin-left: 4px;">원/h</span>
+                        </div>
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+            
+        with m2:
+            st.markdown(f"""
+                <div style="display: flex; justify-content: center; width: 100%;">
+                    <div style="text-align: left;">
+                        <p style="color: #F1AC90; font-size: 0.9rem; margin: 0 0 4px 0;">🟠 Light 평균 가성비</p>
+                        <div style="display: flex; align-items: baseline; padding-left: {indent_width};">
+                            <span style="color: white; font-size: 1.8rem; font-weight: bold;">{int(eff_stats.get('Light', 0)):,}</span>
+                            <span style="color: white; font-size: 1rem; margin-left: 4px;">원/h</span>
+                        </div>
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+            
+        with m3:
+            st.markdown(f"""
+                <div style="display: flex; justify-content: center; width: 100%;">
+                    <div style="text-align: left;">
+                        <p style="color: #FF6D74; font-size: 0.9rem; margin: 0 0 4px 0;">🔴 Heavy 평균 가성비</p>
+                        <div style="display: flex; align-items: baseline; padding-left: {indent_width};">
+                            <span style="color: white; font-size: 1.8rem; font-weight: bold;">{int(eff_stats.get('Heavy', 0)):,}</span>
+                            <span style="color: white; font-size: 1rem; margin-left: 4px;">원/h</span>
+                        </div>
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
 
-        target_reason = "접속 빈도가 낮음을 인지해서"
-        
-        # 2. 분석용 임시 데이터프레임 생성
-        # 'user_seg'는 카테고리형이므로 문자열로 변환하여 처리
-        analysis_df = self.df.copy()
-        analysis_df['is_target_reason'] = (analysis_df['ott_cancel_reason_primary'] == target_reason)
-        
-        # 3. 그룹별 응답 비중 계산 (%)
-        # 각 세그먼트 내에서 해당 사유를 선택한 사람의 비율 산출
-        segment_stats = analysis_df.groupby('user_seg', observed=True)['is_target_reason'].mean() * 100
-        segment_stats = segment_stats.reset_index()
-        segment_stats.columns = ['Segment', 'Response_Rate']
+        # [2] 핵심 인사이트 (박스 없이 깔끔한 텍스트 위계)
+        st.markdown("---")
+        title_indent = "28px" 
 
-        # 4. 시각화 (그룹별 막대 차트)
-        fig = px.bar(
-            segment_stats, 
-            x='Segment', 
-            y='Response_Rate',
-            text='Response_Rate',
-            color='Segment',
-            title=f"유저 그룹별 '{target_reason}' 선택 비중",
-            labels={'Response_Rate': '선택 비중 (%)', 'Segment': '시청 쿼터'},
-            color_discrete_map={'Light': '#E50914', 'Middle': '#94a3b8', 'Heavy': '#cbd5e1'} # Light를 강조
+        # 타이틀 (한 줄 렌더링)
+        st.markdown(f'<div style="margin: 30px 0 20px 0;"><p style="color: white; margin: 0; font-size: 1.05rem; font-weight: bold;">🎯 핵심 인사이트: <span style="color: #cbd5e1; font-weight: normal;">유저 성향에 따른 \'구독 최적화\'의 이중 가치</span></p></div>', unsafe_allow_html=True)
+        
+        # 공통 아이콘 스타일 (잘림 방지 및 뒤쪽 공백 추가)
+        icon_style = 'min-width: 25px; font-size: 1.1rem; line-height: 1.4; display: flex; align-items: center; margin-right: 8px;'
+
+        # Light 내용
+        light_content = (
+            '<div style="flex: 1;">' # 비중 1:1로 복구
+                '<div style="display: flex; align-items: flex-start; margin-bottom: 25px;">'
+                    f'<div style="{icon_style}">🟠</div>'
+                    '<div>'
+                        '<p style="font-weight: bold; margin: 0 0 8px 0; font-size: 1rem; color: #F1AC90;">Light (구독 방치형)</p>'
+                        '<div style="color: #cbd5e1; font-size: 0.92rem; line-height: 1.6;">'
+                            '<p style="margin: 0 0 6px 0;">"언젠간 보겠지"라는 막연한 기대 → 낮은 이용 패턴 인지할 때 해지 발생</p>'
+                            '<p style="margin: 0; display: flex; align-items: flex-start;"><span style="margin-right: 8px; line-height: 1.4;">💡</span><span><b>\'방치된 구독료\' 시각화 + 해지 알림</b></span></p>'
+                        '</div>'
+                    '</div>'
+                '</div>'
+            '</div>'
+        )
+        
+        # Heavy 내용
+        heavy_content = (
+            '<div style="flex: 1;">' # 비중 1:1로 복구
+                '<div style="display: flex; align-items: flex-start; margin-bottom: 25px;">'
+                    f'<div style="{icon_style}">🔴</div>'
+                    '<div>'
+                        '<p style="font-weight: bold; margin: 0 0 8px 0; font-size: 1rem; color: #FF6D74;">Heavy (전략적 체리피커)</p>'
+                        '<div style="color: #cbd5e1; font-size: 0.92rem; line-height: 1.6;">'
+                            '<p style="margin: 0 0 6px 0; white-space: nowrap;">최고 가성비를 누리면서도 이용 효율 저하에 가장 민감하게 반응하는 핵심 집단</p>'
+                            '<p style="margin: 0; display: flex; align-items: flex-start;"><span style="margin-right: 8px; line-height: 1.4;">💡</span><span><b>체계적인 콘텐츠 소비를 돕는 \'구독 스케줄링\'</b></span></p>'
+                        '</div>'
+                    '</div>'
+                '</div>'
+            '</div>'
         )
 
-        fig.update_traces(
-            texttemplate='%{text:.1f}%', 
-            textposition='outside'
-        )
+        # 전체 너비를 1100px로 유지하되 gap을 40px로 줄여서 응집력 있게 배치
+        final_insight_html = f'<div style="display: flex; gap: 40px; padding-left: {title_indent}; max-width: 1100px; align-items: flex-start;">{light_content}{heavy_content}</div>'
         
-        fig.update_layout(
-            yaxis_title="결정적 사유 응답 비중 (%)",
-            showlegend=False,
-            height=400,
-            margin=dict(t=50, b=50)
-        )
-
-        # 5. 화면 배치
-        col_chart, col_text = st.columns([1.5, 1])
-        
-        with col_chart:
-            st.plotly_chart(fig, use_container_width=True)
-            
-        with col_text:
-            st.markdown(f"### 🧐 연결 인사이트")
-            
-            # 데이터에 따른 동적 메시지 생성
-            light_rate = segment_stats.loc[segment_stats['Segment'] == 'Light', 'Response_Rate'].values[0]
-            heavy_rate = segment_stats.loc[segment_stats['Segment'] == 'Heavy', 'Response_Rate'].values[0]
-            
-            diff_factor = light_rate / heavy_rate if heavy_rate > 0 else 0
-
-            st.write(f"""
-            - **가설 검증**: 가성비 곡선에서 확인한 최저 효율 집단(**Light**)은 실제로 **'{target_reason}'**을 해지 사유로 꼽는 비율이 가장 높게 나타납니다.
-            - **결과**: Light 유저의 응답률은 **{light_rate:.1f}%**로, Heavy 유저({heavy_rate:.1f}%) 대비 약 **{diff_factor:.1f}배** 높은 수치를 보입니다.
-            - **전략**: 이는 '이용량 부족'이 단순한 느낌이 아니라, 실제 **구독료에 대한 손실감**으로 이어져 해지를 실행하게 만드는 핵심 기제임을 증명합니다.
-            """)
+        st.markdown(final_insight_html, unsafe_allow_html=True)
 
     def plot_pain_correlation(self):
         st.divider()
@@ -544,4 +587,4 @@ class SkinVisualizer:
                 # 3. 비즈니스 확장 인사이트 (점유율 2위 강조)
                 if len(plot_df) > 1:
                     second_cat = plot_df.iloc[1]['카테고리']
-                    st.success(f"🚀 **확장 전략:** OTT 시장은 이미 포화 상태입니다. 결합 상품이나 관리 서비스 확장 시 점유율 2위인 **'{second_cat}'** 카테고리를 우선 공략해야 합니다.")
+                    st.success(f"🚀 **확장 전략:** 초기 서비스는 OTT에 이어 점유율 2위인 **'{second_cat}'** 카테고리를 함께 공략해야 합니다.")
