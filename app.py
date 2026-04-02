@@ -6,6 +6,7 @@ from pages.form.normal import show_normal_form
 from modules.chatbot import SkinChatbot
 from streamlit_float import *
 import time
+from config import BRAND_COLORS
 
 # 1. 데이터 및 챗봇 로드
 @st.cache_data(ttl=60)
@@ -27,30 +28,49 @@ def get_chatbot():
 def render_visual_dashboard(df):
     """시각화 대시보드 렌더링"""
     viz = SkinVisualizer(df)
+
+    st.markdown("""
+        <style>
+        /* 메트릭 사이의 물리적 간격 추가 조절 */
+        [data-testid="column"] {
+            width: fit-content !important;
+            min-width: fit-content !important;
+            flex: unset !important;
+        }
+        [data-testid="stHorizontalBlock"] {
+            gap: 1.5rem !important; /* 좁히고 싶은 만큼 조절하세요 (기본값은 매우 넓음) */
+        }
+        </style>
+    """, unsafe_allow_html=True)
     
     # 상단 요약 지표 (실제 데이터 개수 확인용)
-    col1, col2, col3 = st.columns(3)
+    col1, col2, empty_space = st.columns([1, 1, 3])
     with col1:
         st.metric("📊 총 응답 수", f"{len(df)}개")
     with col2:
         st.metric("📅 마지막 업데이트", time.strftime("%H:%M:%S"))
+    with empty_space:
+        st.empty()
     
     st.divider()
 
     # Part 1: Demographic
-    st.header("1️⃣ 응답자 분석 (Demographic)")
+    st.header("Part1. 응답자 분석 (Demographic)")
+    st.divider()
     viz.plot_demographic_all()
     viz.plot_high_intent_persona()
     st.divider()
     
     # Part 2: OTT Deep-Dive
-    st.header("2️⃣ OTT 집중 분석: 해지 사유와 효율성")
+    st.header("Part2. OTT 집중 분석: 해지 사유와 효율성")
+    st.divider()
     viz.plot_cancel_trigger_analysis()
     viz.plot_ott_usage_efficiency()
     st.divider()
     
     # Part 3: Hypothesis & Expansion
-    st.header("3️⃣ 가설 검증 및 시장 확장성")
+    st.header("Part3. 가설 검증 및 시장 확장성")
+    st.divider()
     viz.plot_pain_correlation()
     viz.plot_market_expansion()
 
@@ -104,7 +124,7 @@ def render_chatbot_ui():
 
         /* 채팅 텍스트 자체의 스타일 (폰트 색상, 크기, 줄간격) */
         div[data-testid="stChatMessageContent"] [data-testid="stMarkdownContainer"] p {
-            color: #212529 !important;
+            color: #18edb4 !important;
             font-size: 0.95rem !important;
             line-height: 1.6 !important;
         }
@@ -175,7 +195,7 @@ def render_chatbot_ui():
 
         /* 클릭(포커스) 시 스타일 유지 및 placeholder 처리 */
         div[data-testid="stTextInput"] input:focus {
-            border: 1.5px solid #FF4B4B !important;
+            border: 1.5px solid #18edb4 !important;
             box-shadow: none !important;
             outline: none !important;
         }
@@ -189,12 +209,45 @@ def render_chatbot_ui():
     """, unsafe_allow_html=True)
 
     with st.sidebar:
+        # --- 챗봇 버튼 스타일 커스텀 ---
         st.markdown("<br>" * 5, unsafe_allow_html=True)
         st.divider()
-        btn_label = "❌ 닫기" if st.session_state.chat_open else "💬 분석 어드바이저"
+        
+        btn_label = "X 닫기" if st.session_state.chat_open else "💬 분석 어드바이저"
+        
+        # 1. 버튼 생성 (기존 로직)
         if st.button(btn_label, use_container_width=True, type="primary"):
             st.session_state.chat_open = not st.session_state.chat_open
             st.rerun()
+
+        # 2. 자바스크립트를 이용한 강제 색상 변경
+        # 0.1초마다 버튼을 감시하며 빨간색을 민트색(#13d6a2)으로 바꿉니다.
+        st.components.v1.html(f"""
+            <script>
+            const setMintColor = () => {{
+                const buttons = window.parent.document.querySelectorAll('button[kind="primary"]');
+                buttons.forEach(btn => {{
+                    btn.style.backgroundColor = '{BRAND_COLORS.MAIN_MINT}';
+                    btn.style.borderColor = '{BRAND_COLORS.MAIN_MINT}';
+                    btn.style.color = 'white';
+                }});
+            }};
+            
+            // 즉시 실행 및 반복 실행 (Streamlit 리렌더링 대응)
+            setMintColor();
+            setInterval(setMintColor, 500);
+            </script>
+        """, height=0)
+
+        # 3. 마우스 올렸을 때를 위한 최소한의 CSS
+        st.markdown(f"""
+            <style>
+            div[data-testid="stSidebar"] button[kind="primary"]:hover {{
+                background-color: {BRAND_COLORS.SUB_MINT} !important;
+                opacity: 0.9;
+            }}
+            </style>
+        """, unsafe_allow_html=True)
 
     if st.session_state.chat_open:
         chat_container = st.container()
@@ -202,7 +255,7 @@ def render_chatbot_ui():
         with chat_container:
             # 1. 헤더: 단색 플랫 디자인
             st.markdown("""
-                <div style="background:#FF4B4B; color:white; padding:20px; border-radius:25px 25px 0 0; 
+                <div style="background:#13d6a2; color:white; padding:20px; border-radius:25px 25px 0 0; 
                             text-align:center; font-weight:700; font-size:1.1rem; position:relative; z-index: 1002; box-shadow: 0 0 10px rgba(0,0,0,0.3);">
                     🤖 분석 어드바이저
                 </div>

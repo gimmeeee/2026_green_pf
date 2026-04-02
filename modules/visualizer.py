@@ -3,6 +3,7 @@ import plotly.graph_objects as go
 import streamlit as st
 import pandas as pd
 import numpy as np
+from config import BRAND_COLORS
 
 class SkinVisualizer:
     def __init__(self, df):
@@ -39,31 +40,59 @@ class SkinVisualizer:
             if field in self.df.columns:
                 self.df[field] = pd.to_numeric(self.df[field], errors='coerce').fillna(0)
 
+        # 6. 차트 레이아웃 설정
+        self.common_layout = dict(
+            title_font_color=BRAND_COLORS.SUB_TEXT,
+            plot_bgcolor=BRAND_COLORS.TRANSPARENT,
+            paper_bgcolor=BRAND_COLORS.TRANSPARENT,
+        )
+
     def plot_demographic_all(self):
         """Part 1: 전체 응답자 분포 (성별/연령/직업 3분할)"""
-        st.markdown("##### [시각화 1] 전체 응답자 인구통계 분포")
+        st.markdown(f"<h5 style='font-weight:600; margin-bottom:6px;'>📊 1. 전체 응답자 인구통계 분포</h5>", unsafe_allow_html=True)
         
         col1, col2, col3 = st.columns(3)
+        demo_layout_base = {
+            **self.common_layout,
+            "margin": dict(t=40, b=40, l=10, r=10),
+            "showlegend": True
+        }
+        
         with col1:
             if 'gender' in self.df.columns:
-                fig_gen = px.pie(self.df, names='gender', title="성별 비중", hole=0.5,
-                                 color_discrete_sequence=px.colors.qualitative.Pastel)
-                fig_gen.update_layout(showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5))
-                st.plotly_chart(fig_gen, use_container_width=True)
+                fig_gen = px.pie(self.df, names='gender', title="성별 비중", hole=0.6,
+                                 color_discrete_sequence=BRAND_COLORS.CHART_CATEGORICAL)
+                # 범례 위치만 추가 설정 (타이틀 컬러는 common_layout에서 자동으로 적용)
+                fig_gen.update_layout(**demo_layout_base, legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5))
+                fig_gen.update_traces(hovertemplate="gender= <b>%{label}</b><br>%{value}<extra></extra>")
+                st.plotly_chart(fig_gen, use_container_width=True, config={'displayModeBar': False})
+                
         with col2:
             if 'age_group' in self.df.columns:
-                fig_age = px.pie(self.df, names='age_group', title="연령대 분포", hole=0.5, 
-                             color_discrete_sequence=px.colors.qualitative.Safe)
-                fig_age.update_layout(showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5))
-                st.plotly_chart(fig_age, use_container_width=True)
+                age_counts = self.df['age_group'].value_counts().reset_index()
+                age_counts.columns = ['age_group', 'count']
+                fig_age = px.pie(age_counts, names='age_group', values='count', title="연령대 분포", hole=0.6,
+                                 color_discrete_sequence=BRAND_COLORS.CHART_CATEGORICAL)
+                
+                # fig_age 변수로 정확히 호출
+                fig_age.update_layout(**demo_layout_base, legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5))
+                fig_age.update_traces(hovertemplate="age_group= <b>%{label}</b><br>%{value}<extra></extra>")
+                st.plotly_chart(fig_age, use_container_width=True, config={'displayModeBar': False})
+                
         with col3:
             if 'job' in self.df.columns:
                 job_counts = self.df['job'].value_counts().reset_index()
                 job_counts.columns = ['job', 'count']
                 fig_job = px.bar(job_counts, x='job', y='count', title="직업군 분포", 
-                                 color='job', color_discrete_sequence=px.colors.qualitative.Set3)
-                fig_job.update_layout(showlegend=False, xaxis_title=None, yaxis_title="인원 수")
-                st.plotly_chart(fig_job, use_container_width=True)
+                                 color_discrete_sequence=BRAND_COLORS.CHART_MAIN)
+                
+                # 공통 레이아웃 적용 후 바 차트 특화 설정만 덮어쓰기
+                fig_job.update_layout(**demo_layout_base)
+                fig_job.update_layout(showlegend=False, xaxis_title=None, yaxis_title=None)
+                
+                fig_job.update_traces(hovertemplate="job= <b>%{x}</b><br>%{y}<extra></extra>", marker_line_width=0)
+                st.plotly_chart(fig_job, use_container_width=True, config={'displayModeBar': False})
+
 
     def get_group_comments(self, sub_df, col_name='usage_expect', max_items=3):
         """특정 그룹의 주관식 응답(usage_expect)에서 의미 없는 답변을 제외하고 추출"""
@@ -90,7 +119,8 @@ class SkinVisualizer:
 
     def plot_high_intent_persona(self):
         """Part 1 - 시각화 2: 사용 고의향군 심층 분석"""
-        st.markdown("##### [시각화 2] 사용 고의향군 심층 분석 (Potential Power Users)")
+        for _ in range(4): st.write("")
+        st.markdown(f"<h5 style='font-weight:600; margin-bottom:6px;'>📊 2. 사용 고의향군 심층 분석 (Potential Power Users)</h5>", unsafe_allow_html=True)
         
         # 고의향군 필터링 (5점 이상)
         high_intent = self.df[self.df['usage_intent'] >= 5].copy()
@@ -105,114 +135,149 @@ class SkinVisualizer:
                 path=['gender', 'job', 'age_group'], 
                 values='usage_intent',
                 title="고의향군 인구통계 분포 (성별 > 직업 > 연령)",
-                color='usage_intent',
-                color_continuous_scale='RdBu_r',
+                color='usage_intent', # 수치형 데이터
+                color_continuous_scale=BRAND_COLORS.SUNBURST_SCALE,
                 height=700,
+            )
+            fig_sun.update_layout(**self.common_layout,
+                margin=dict(t=40, b=20, l=20, r=20), 
+                coloraxis_showscale=False,
             )
             # 퍼센트와 라벨이 함께 나오도록 수정
             fig_sun.update_traces(
                 textinfo="label+percent parent",
-                hovertemplate='<b>%{label}</b><br>사용의향 합계: %{value}<br>비중: %{percentParent:.1%}'
+                hovertemplate='<b>%{label}</b><br>사용의향 합계: %{value}<br>비중: %{percentParent:.1%}',
+                marker_line_width=1.5,
+                marker_line_color="rgba(255, 255, 255, 0.3)", 
+                insidetextorientation='radial',
             )
             st.plotly_chart(fig_sun, use_container_width=True)
 
         with right_col:
-            st.markdown(f"### 🎯 핵심 타겟 리포트")
-            st.info(f"💡 전체 응답자 평균 사용 의향: **{avg_intent:.1f}점**")
-            st.success(f"🚀 분석 대상: 사용 의향 **5점 이상** 고의향 유저 ({len(high_intent)}명)")
-            
             if not high_intent.empty:
-                # [1. 데이터 추출 - 기존 로직 동일]
+                # 1. 데이터 추출
                 persona_counts = high_intent.groupby(['gender', 'job', 'age_group']).size().reset_index(name='count')
-                top_persona_row = persona_counts.loc[persona_counts['count'].idxmax()]
-                main_sub = high_intent[(high_intent['gender'] == top_persona_row['gender']) & (high_intent['job'] == top_persona_row['job']) & (high_intent['age_group'] == top_persona_row['age_group'])]
+                top_p = persona_counts.loc[persona_counts['count'].idxmax()]
+                main_sub = high_intent[(high_intent['gender'] == top_p['gender']) & (high_intent['job'] == top_p['job']) & (high_intent['age_group'] == top_p['age_group'])]
                 
                 group_stats = high_intent.groupby(['gender', 'job', 'age_group']).agg({'usage_intent': 'mean', 'Respondent ID': 'count'}).reset_index()
-                efficient_targets = group_stats[(group_stats['usage_intent'] > avg_intent + 0.5) & (group_stats['Respondent ID'] >= 2)].sort_values(by='usage_intent', ascending=False)
+                eff_targets = group_stats[(group_stats['usage_intent'] > avg_intent + 0.5) & (group_stats['Respondent ID'] >= 2)].sort_values(by='usage_intent', ascending=False)
 
-                # 숫자 너비 고정 (글자 시작 위치를 맞추기 위함)
-                num_width = "28px" 
-
-                # --- 2. 메인 타겟 HTML (말풍선 들여쓰기 제거 및 라인 정렬) ---
-                main_v_msgs = self.get_group_comments(main_sub)
-                # 말풍선도 이제 숫자 너비(num_width)만큼만 들여써서 타이틀과 라인을 맞춤
-                main_msgs_html = "".join(['<p style="margin: 4px 0; color: #94a3b8; font-size: 0.82rem; line-height: 1.5;">🗨️ "' + str(msg) + '"</p>' for msg in main_v_msgs])
-                
-                main_target_html = (
-                    '<div style="margin-bottom: 35px; display: flex; align-items: flex-start;">'
-                        '<span style="font-weight: bold; color: white; font-size: 1.1rem; min-width: ' + num_width + '; padding-top: 2px;">1.</span>'
-                        '<div style="flex: 1;">'
-                            '<p style="margin: 0 0 4px 0; font-weight: bold; color: white; font-size: 1.1rem;">메인 볼륨 타겟 (Mass)</p>'
-                            '<p style="margin: 0 0 10px 0; color: #cbd5e1; font-size: 0.95rem;">' + str(top_persona_row['gender']) + ' ' + str(top_persona_row['job']) + ' (' + str(top_persona_row['age_group']) + ')</p>'
-                            '<div>' + main_msgs_html + '</div>'
-                        '</div>'
-                    '</div>'
-                )
-
-                # --- 3. 고효율 타겟 HTML (말풍선 들여쓰기 제거 및 라인 정렬) ---
-                eff_target_html = ""
-                if not efficient_targets.empty:
-                    eff_row = efficient_targets.iloc[0]
-                    eff_sub = high_intent[(high_intent['gender'] == eff_row['gender']) & (high_intent['job'] == eff_row['job']) & (high_intent['age_group'] == eff_row['age_group'])]
-                    eff_v_msgs = self.get_group_comments(eff_sub)
-                    eff_msgs_html = "".join(['<p style="margin: 4px 0; color: #94a3b8; font-size: 0.82rem; line-height: 1.5;">🗨️ "' + str(msg) + '"</p>' for msg in eff_v_msgs])
+                # --- 2. CSS 스타일 정의 ---
+                st.markdown("""
+                    <style>
+                    .report-container { margin-top: 60px; font-family: sans-serif; padding-left: 15px; }
+                    .report-title { color: #0D9488 !important; font-size: 1.4rem; margin-bottom: 18px; font-weight: 700; }
+                    .summary-box { background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; padding: 18px; margin-bottom: 35px; }
                     
-                    eff_target_html = (
-                        '<div style="display: flex; align-items: flex-start;">'
-                            '<span style="font-weight: bold; color: white; font-size: 1.1rem; min-width: ' + num_width + '; padding-top: 2px;">2.</span>'
-                            '<div style="flex: 1;">'
-                                '<p style="margin: 0 0 4px 0; font-weight: bold; color: white; font-size: 1.1rem;">고효율 집중 타겟 🚩</p>'
-                                '<p style="margin: 0 0 10px 0; color: #cbd5e1; font-size: 0.95rem;">' + str(eff_row['gender']) + ' ' + str(eff_row['job']) + ' (' + str(eff_row['age_group']) + ') | <b>평균 ' + "{:.1f}".format(eff_row['usage_intent']) + '점</b></p>'
-                                '<div>' + eff_msgs_html + '</div>'
-                            '</div>'
-                        '</div>'
-                    )
+                    /* border-left를 없애는 대신 padding-left를 22px 주어 들여쓰기 유지 */
+                    .target-card { display: flex; align-items: flex-start; margin-bottom: 40px; padding-left: 22px; }
+                    
+                    .target-num { font-weight: bold; font-size: 1.15rem; min-width: 32px; color: #64748b !important; }
+                    .target-label { font-weight: bold; font-size: 1.15rem; margin: 0 0 4px 0; color: #1e293b !important; }
+                    .target-desc { margin: 0 0 10px 0; color: #475569 !important; font-size: 0.95rem; }
+                    .needs-badge { padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-weight: bold; margin-right: 8px; vertical-align: middle; }
+                    .needs-text { margin: 6px 0; color: #64748b !important; font-size: 0.88rem; line-height: 1.6; }
+                    .point-mint { color: #0D9488 !important; font-weight: bold; }
+                            
+                    /* 사용자가 다크모드일 때만 적용되는 설정 */
+                    @media (prefers-color-scheme: dark) {
+                        .report-container { color: #E2E8F0; }
+                        .summary-box { 
+                            background-color: #1E293B; 
+                            border: 1px solid #334155; 
+                        }
+                        .target-label { color: #F8FAFC !important; }
+                        .target-desc { color: #94A3B8 !important; }
+                        .needs-text { color: #CBD5E1 !important; }
+                    }
+                    </style>
+                """, unsafe_allow_html=True)
 
-                # --- 4. 최종 출력 ---
-                final_html = '<div style="padding-left: 30px; font-family: sans-serif;">' + main_target_html + eff_target_html + '</div>'
+                # --- 3. HTML 조립 (포매팅 없이 순수 문자열 결합) ---
+                
+                # [메인 타겟 리스트]
+                main_items = ""
+                for msg in self.get_group_comments(main_sub):
+                    main_items += '<p class="needs-text"><span class="needs-badge" style="background-color: #F1F5F9; color: #475569;">Needs</span> "' + str(msg) + '"</p>'
+
+                # [고효율 타겟 섹션]
+                eff_section = ""
+                if not eff_targets.empty:
+                    eff_row = eff_targets.iloc[0]
+                    eff_sub = high_intent[(high_intent['gender'] == eff_row['gender']) & (high_intent['job'] == eff_row['job']) & (high_intent['age_group'] == eff_row['age_group'])]
+                    eff_items = ""
+                    for msg in self.get_group_comments(eff_sub):
+                        eff_items += '<p class="needs-text"><span class="needs-badge" style="background-color: #F1F5F9; color: #475569;">Needs</span> "' + str(msg) + '"</p>'
+                    
+                    eff_section = '<div class="target-card">' + \
+                                  '<span class="target-num">2.</span>' + \
+                                  '<div style="flex: 1;">' + \
+                                  '<p class="target-label">고효율 집중 타겟 🚩</p>' + \
+                                  '<p class="target-desc">' + str(eff_row["gender"]) + ' ' + str(eff_row["job"]) + ' (' + str(eff_row["age_group"]) + ') | <span class="point-mint">평균 ' + str(round(eff_row["usage_intent"], 1)) + '점</span></p>' + \
+                                  '<div>' + eff_items + '</div>' + \
+                                  '</div></div>'
+
+                # [최종 통합 출력]
+                final_html = '<div class="report-container">' + \
+                             '<h3 class="report-title">🎯 핵심 타겟 리포트</h3>' + \
+                             '<div class="summary-box"><p style="margin: 0; color: #475569 !important; font-size: 0.95rem; line-height: 1.8;">' + \
+                             '<span style="margin-right: 8px;">💡</span> 전체 응답자 평균 사용 의향: <b>' + str(round(avg_intent, 1)) + '점</b><br>' + \
+                             '<span style="margin-right: 8px;">🚀</span> 분석 대상: 사용 의향 <span class="point-mint">5점 이상</span> 고의향 유저 (' + str(len(high_intent)) + '명)</p></div>' + \
+                             '<div class="target-card">' + \
+                             '<span class="target-num">1.</span>' + \
+                             '<div style="flex: 1;">' + \
+                             '<p class="target-label">메인 볼륨 타겟 (Mass)</p>' + \
+                             '<p class="target-desc">' + str(top_p["gender"]) + ' ' + str(top_p["job"]) + ' (' + str(top_p["age_group"]) + ')</p>' + \
+                             '<div>' + main_items + '</div></div></div>' + \
+                             eff_section + '</div>'
+
                 st.markdown(final_html, unsafe_allow_html=True)
                 
             else:
-                st.warning("분석할 데이터가 부족합니다.")
+                st.warning("분석 데이터가 부족합니다.")
 
     def plot_cancel_trigger_analysis(self):
-        st.markdown("##### [시각화 1] 해지 트리거 분석")
+        st.markdown(f"<h5 style='font-weight:600; margin-bottom:6px;'>📊 1. 해지 트리거 분석</h5>", unsafe_allow_html=True)
+        
         col1, col2 = st.columns(2)
         
-        # 공통 레이아웃 설정
-        common_layout = dict(
-            coloraxis_showscale=False,
-            showlegend=False,
-            xaxis_title="응답 수",
-            yaxis_title=None,
-            height=450,
-            margin=dict(l=220, r=20, t=50, b=50) # 긴 텍스트를 위한 왼쪽 여백 통일
-        )
-
         # --- [col1] 전체 해지 사유 (복수 응답) ---
         with col1:
             if 'ott_cancel_reason' in self.df.columns:
-                # 데이터 처리
                 reasons = self.df['ott_cancel_reason'].astype(str).str.split(',').explode().str.strip()
                 reasons = reasons[reasons.str.lower() != 'nan']
                 counts = reasons.value_counts().sort_values(ascending=True)
                 
-                # 차트 생성
                 fig = px.bar(counts, orientation='h', title="전체 해지 사유 (복수 응답)", 
-                             color=counts.values, color_continuous_scale='Reds')
+                             color_discrete_sequence=[BRAND_COLORS.POINT_CORAL])
                 
-                # 레이아웃 적용
-                line_widths = [1 if val <= 5 else 0 for val in counts.values]
-                fig.update_traces(
-                    marker_line_width=line_widths, # 계산된 리스트 적용
-                    marker_line_color='lightgrey', # 연한 회색 테두리
-                    text=counts.values,
-                    textposition='outside',
-                    cliponaxis=False
+                fig.update_traces(text=counts.values, textposition='outside', cliponaxis=False)
+                
+                fig.update_layout(
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    # 타이틀: 위치(y)와 기준점(yref)을 조정해서 콘텐츠에 밀착
+                    title=dict(
+                        text="전체 해지 사유 (복수 응답)",
+                        font=dict(size=15, color=BRAND_COLORS.SUB_TEXT),
+                        x=0,
+                        y=0.98,          # 위로 더 올림
+                        xanchor='left',
+                        yanchor='top'
+                    ),
+                    xaxis=dict(
+                        title=dict(text="응답 수", font=dict(size=11)),
+                        tickfont=dict(size=11),
+                        gridcolor="#F0F0F0"
+                    ),
+                    yaxis=dict(title=None, tickfont=dict(size=11), automargin=True),
+                    height=450,
+                    # [핵심 수정] 상단 마진을 80 -> 50으로 줄여 간격 최적화
+                    margin=dict(l=220, r=40, t=50, b=40), 
+                    showlegend=False
                 )
-                fig.update_layout(**common_layout)
-                fig.update_yaxes(automargin=True)
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
                 
         # --- [col2] 결정적 해지 사유 (단수 응답) ---
         with col2:
@@ -222,19 +287,33 @@ class SkinVisualizer:
                 counts_p = primary_series.value_counts().sort_values(ascending=True)
             
                 fig_p = px.bar(counts_p, orientation='h', title="결정적 해지 사유 (단일 응답)",
-                            color=counts_p.values, color_continuous_scale='Blues')
+                               color_discrete_sequence=[BRAND_COLORS.MAIN_MINT])
             
-                line_widths_p = [1 if val <= 5 else 0 for val in counts_p.values] 
-                fig_p.update_traces(
-                    marker_line_width=line_widths_p, 
-                    marker_line_color='lightgrey',
-                    text=counts_p.values, # 이제 단수 응답 숫자가 제대로 나옵니다
-                    textposition='outside',
-                    cliponaxis=False
+                fig_p.update_traces(text=counts_p.values, textposition='outside', cliponaxis=False)
+                
+                fig_p.update_layout(
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    title=dict(
+                        text="결정적 해지 사유 (단일 응답)",
+                        font=dict(size=15, color=BRAND_COLORS.SUB_TEXT),
+                        x=0,
+                        y=0.98,
+                        xanchor='left',
+                        yanchor='top'
+                    ),
+                    xaxis=dict(
+                        title=dict(text="응답 수", font=dict(size=11)),
+                        tickfont=dict(size=11),
+                        gridcolor="#F0F0F0"
+                    ),
+                    yaxis=dict(title=None, tickfont=dict(size=11), automargin=True),
+                    height=450,
+                    # [핵심 수정] 상단 마진 최적화
+                    margin=dict(l=220, r=40, t=50, b=40),
+                    showlegend=False
                 )
-                fig_p.update_layout(**common_layout)
-                fig_p.update_yaxes(automargin=True)
-                st.plotly_chart(fig_p, use_container_width=True)
+                st.plotly_chart(fig_p, use_container_width=True, config={'displayModeBar': False})
 
         if 'ott_cancel_reason_primary' in self.df.columns:
             
@@ -259,19 +338,18 @@ class SkinVisualizer:
             c_indent = "28px"
 
             full_html = (
-                f'<div style="background-color: #1e293b; padding: 20px; border-radius: 12px; border-left: 5px solid #60a5fa; margin-bottom: 25px; font-family: sans-serif;">'
-                    f'<p style="color: #60a5fa; font-weight: bold; margin: 0 0 12px 0; font-size: 0.95rem; letter-spacing: 0.5px;">🎯 핵심 트리거 분석 결과</p>'
+                f'<div style="background-color: #F0FDFA; padding: 22px; border-radius: 12px; border-left: 5px solid #2DD4BF; margin-bottom: 25px; font-family: sans-serif; border: 1px solid #CCFBF1;">'
+                    f'<p style="color: #0D9488; font-weight: bold; margin: 0 0 12px 0; font-size: 0.95rem; letter-spacing: 0.5px;">🎯 핵심 트리거 분석 결과</p>'
                     f'<div style="padding-left: {c_indent};">'
-                        f'<p style="color: white; font-size: 1.1rem; margin: 0 0 15px 0; line-height: 1.5;">현재 유저들이 해지를 결정하는 결정적 요인은 <span style="color: #f8fafc; font-weight: bold; border-bottom: 2px solid #60a5fa;">\'{top_primary}\'</span>입니다.</p>'
-                        f'<div style="border-top: 1px solid #334155; padding-top: 15px;">'
-                            f'<p style="margin: 0 0 4px 0; color: #94a3b8; font-size: 0.92rem; line-height: 1.6;">이는 "내가 지불하는 비용만큼 충분히 이용하고 있는가?"라는 <span style="color: #cbd5e1; font-weight: bold;">\'효율성\'</span>의 문제에서 시작됩니다.</p>'
-                            f'<p style="margin: 0; color: #94a3b8; font-size: 0.92rem; line-height: 1.6;"><span style="color: #60a5fa; font-weight: bold;">[{target_solution}]</span>을 최우선으로 제공해야 한다는 인사이트기 될 수 있습니다.</p>'
+                        f'<p style="color: #111827; font-size: 1.1rem; margin: 0 0 15px 0; line-height: 1.5; font-weight: 600;">현재 유저들이 해지를 결정하는 결정적 요인은 <span style="color: #0D9488; font-weight: bold; border-bottom: 2px solid #2DD4BF;">\'{top_primary}\'</span>입니다.</p>'
+                        f'<div style="border-top: 1px solid #CCFBF1; padding-top: 15px;">'
+                            f'<p style="margin: 0 0 8px 0; color: #374151; font-size: 0.92rem; line-height: 1.6;">이는 "내가 지불하는 비용만큼 충분히 이용하고 있는가?"라는 <span style="color: #059669; font-weight: bold;">\'효율성\'</span>의 문제에서 시작됩니다.</p>'
+                            f'<p style="margin: 0; color: #374151; font-size: 0.92rem; line-height: 1.6;"><span style="color: #0D9488; font-weight: bold;">[{target_solution}]</span>을 최우선으로 제공해야 한다는 인사이트를 줍니다.</p>'
                         f'</div>'
                     f'</div>'
                 f'</div>'
             )
 
-            st.markdown("<br>", unsafe_allow_html=True)
             st.markdown(full_html, unsafe_allow_html=True)
 
         else:
@@ -281,7 +359,7 @@ class SkinVisualizer:
         st.markdown("---")
         st.markdown("""
             <div style="margin-bottom: 6px;">
-                <h5 style="margin-bottom: 2px; padding-bottom: 0;">[시각화 2] 구독 효율성 심층 분석</h5>
+                <h5 style="margin-bottom: 2px; padding-bottom: 0;">📊 2. 구독 효율성 심층 분석</h5>
                 <p style="color: #94a3b8; font-size: 0.8rem; margin: 0; padding: 0;">※ 기준: 유저별 OTT 구독료 합계 및 주간 시청 시간 기반 산출</p>
             </div>
         """, unsafe_allow_html=True)
@@ -497,8 +575,7 @@ class SkinVisualizer:
         st.markdown(final_insight_html, unsafe_allow_html=True)
 
     def plot_pain_correlation(self):
-        st.divider()
-        st.markdown("##### [시각화 1] 구독 비용 및 개수와 관리 피로도의 관계")
+        st.markdown(f"<h5 style='font-weight:600; margin-bottom:6px;'>📊 1. 구독 비용 및 개수와 관리 피로도의 관계</h5>", unsafe_allow_html=True)
         
         # 1. 데이터 준비 및 지터(Jitter) 최적화
         plot_df = self.df.copy()
@@ -559,7 +636,7 @@ class SkinVisualizer:
             """)
 
     def plot_market_expansion(self):
-        st.markdown("##### [시각화 2] 카테고리별 구독 점유율")
+        st.markdown(f"<h5 style='font-weight:600; margin-bottom:6px;'>📊 2. 구독 카테고리별 점유율</h5>", unsafe_allow_html=True)
         if self.service_cols:
             counts = self.df[self.service_cols].sum().sort_values(ascending=False)
             counts.index = [idx.replace('service_current_', '').upper() for idx in counts.index]
