@@ -222,7 +222,7 @@ class SkinVisualizer:
                 final_html = '<div class="report-container">' + \
                              '<h3 class="report-title">🎯 핵심 타겟 리포트</h3>' + \
                              '<div class="summary-box"><p style="margin: 0; color: #475569 !important; font-size: 0.95rem; line-height: 1.8;">' + \
-                             '<span style="margin-right: 8px;">💡</span> 전체 응답자 평균 사용 의향: <b>' + str(round(avg_intent, 1)) + '점</b><br>' + \
+                             '<span style="margin-left: 3px; margin-right: 9.5px;">💡</span> 전체 응답자 평균 사용 의향: <b>' + str(round(avg_intent, 1)) + '점</b><br>' + \
                              '<span style="margin-right: 8px;">🚀</span> 분석 대상: 사용 의향 <span class="point-mint">5점 이상</span> 고의향 유저 (' + str(len(high_intent)) + '명)</p></div>' + \
                              '<div class="target-card">' + \
                              '<span class="target-num">1.</span>' + \
@@ -242,78 +242,67 @@ class SkinVisualizer:
         
         col1, col2 = st.columns(2)
         
-        # --- [col1] 전체 해지 사유 (복수 응답) ---
+        # --- # --- [col1] 전체 해지 사유 ---
         with col1:
             if 'ott_cancel_reason' in self.df.columns:
+                # 데이터 전처리 (nan 제거 및 카운트)
                 reasons = self.df['ott_cancel_reason'].astype(str).str.split(',').explode().str.strip()
                 reasons = reasons[reasons.str.lower() != 'nan']
                 counts = reasons.value_counts().sort_values(ascending=True)
                 
-                fig = px.bar(counts, orientation='h', title="전체 해지 사유 (복수 응답)", 
-                             color_discrete_sequence=[BRAND_COLORS.POINT_CORAL])
+                borders = ['#E0E0E0' if v <= 5 else 'rgba(0,0,0,0)' for v in counts.values]
+                line_widths = [1 if v <= 5 else 0 for v in counts.values]
+
+                fig = px.bar(counts, orientation='h', template=None,
+                             color=counts.values, 
+                             color_continuous_scale=["#FFF6F5", "#FACEC8", "#F1A197"]) # 연함 -> 진함
                 
-                fig.update_traces(text=counts.values, textposition='outside', cliponaxis=False)
-                
-                fig.update_layout(
-                    paper_bgcolor="rgba(0,0,0,0)",
-                    plot_bgcolor="rgba(0,0,0,0)",
-                    # 타이틀: 위치(y)와 기준점(yref)을 조정해서 콘텐츠에 밀착
-                    title=dict(
-                        text="전체 해지 사유 (복수 응답)",
-                        font=dict(size=15, color=BRAND_COLORS.SUB_TEXT),
-                        x=0,
-                        y=0.98,          # 위로 더 올림
-                        xanchor='left',
-                        yanchor='top'
-                    ),
-                    xaxis=dict(
-                        title=dict(text="응답 수", font=dict(size=11)),
-                        tickfont=dict(size=11),
-                        gridcolor="#F0F0F0"
-                    ),
-                    yaxis=dict(title=None, tickfont=dict(size=11), automargin=True),
-                    height=450,
-                    # [핵심 수정] 상단 마진을 80 -> 50으로 줄여 간격 최적화
-                    margin=dict(l=220, r=40, t=50, b=40), 
-                    showlegend=False
+                fig.update_traces(
+                    text=counts.values, textposition='outside', textfont=dict(size=12), 
+                    cliponaxis=False,
+                    marker=dict(line=dict(color=borders, width=line_widths))
                 )
-                st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+
+                fig.update_layout(
+                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                    title=dict(text="<b>전체 해지 사유 (복수 응답)</b>", font=dict(size=16, color=BRAND_COLORS.SUB_TEXT), x=0, y=0.98, xanchor='left', yanchor='top'),
+                    xaxis=dict(title=dict(text="응답 수", font=dict(size=12)), tickfont=dict(size=12), gridcolor="#F0F0F0", showgrid=True, zeroline=False),
+                    yaxis=dict(title=None, tickfont=dict(size=12), showline=False, automargin=True, ticksuffix="   "),
+                    height=450, margin=dict(l=50, r=50, t=50, b=50), 
+                    showlegend=False,
+                    coloraxis_showscale=False # 우측 컬러바 제거
+                )
+                st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False}, theme=None)
                 
-        # --- [col2] 결정적 해지 사유 (단수 응답) ---
         with col2:
             if 'ott_cancel_reason_primary' in self.df.columns:
                 primary_series = self.df['ott_cancel_reason_primary'].astype(str).str.strip()
                 primary_series = primary_series[primary_series.str.lower() != 'nan']
                 counts_p = primary_series.value_counts().sort_values(ascending=True)
             
-                fig_p = px.bar(counts_p, orientation='h', title="결정적 해지 사유 (단일 응답)",
-                               color_discrete_sequence=[BRAND_COLORS.MAIN_MINT])
-            
-                fig_p.update_traces(text=counts_p.values, textposition='outside', cliponaxis=False)
-                
-                fig_p.update_layout(
-                    paper_bgcolor="rgba(0,0,0,0)",
-                    plot_bgcolor="rgba(0,0,0,0)",
-                    title=dict(
-                        text="결정적 해지 사유 (단일 응답)",
-                        font=dict(size=15, color=BRAND_COLORS.SUB_TEXT),
-                        x=0,
-                        y=0.98,
-                        xanchor='left',
-                        yanchor='top'
-                    ),
-                    xaxis=dict(
-                        title=dict(text="응답 수", font=dict(size=11)),
-                        tickfont=dict(size=11),
-                        gridcolor="#F0F0F0"
-                    ),
-                    yaxis=dict(title=None, tickfont=dict(size=11), automargin=True),
-                    height=450,
-                    # [핵심 수정] 상단 마진 최적화
-                    margin=dict(l=220, r=40, t=50, b=40),
-                    showlegend=False
+                borders_p = ['#E0E0E0' if v <= 5 else 'rgba(0,0,0,0)' for v in counts.values]
+                line_widths_p = [1 if v <= 5 else 0 for v in counts.values]
+
+                fig_p = px.bar(counts_p, orientation='h', template=None,
+                               color=counts_p.values,
+                               color_continuous_scale=["#ECFFF9", "#ABE6D6", "#0BB085"])
+        
+                fig_p.update_traces(
+                    text=counts_p.values, textposition='outside', textfont=dict(size=12), 
+                    cliponaxis=False,
+                    marker=dict(line=dict(color=borders_p, width=line_widths_p))
                 )
-                st.plotly_chart(fig_p, use_container_width=True, config={'displayModeBar': False})
+
+                fig_p.update_layout(
+                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                    title=dict(text="<b>결정적 해지 사유 (단일 응답)</b>", font=dict(size=16, color=BRAND_COLORS.SUB_TEXT), x=0, y=0.98, xanchor='left', yanchor='top'),
+                    xaxis=dict(title=dict(text="응답 수", font=dict(size=12)), tickfont=dict(size=12), gridcolor="#F0F0F0", showgrid=True, zeroline=False),
+                    yaxis=dict(title=None, tickfont=dict(size=12), showline=False, automargin=True, ticksuffix="   "),
+                    height=450, margin=dict(l=50, r=50, t=50, b=50),
+                    showlegend=False,
+                    coloraxis_showscale=False # 우측 컬러바 제거
+                )
+                st.plotly_chart(fig_p, use_container_width=True, config={'displayModeBar': False}, theme=None)
 
         if 'ott_cancel_reason_primary' in self.df.columns:
             
@@ -359,20 +348,20 @@ class SkinVisualizer:
         st.markdown("---")
         st.markdown("""
             <div style="margin-bottom: 6px;">
-                <h5 style="margin-bottom: 2px; padding-bottom: 0;">📊 2. 구독 효율성 심층 분석</h5>
+                <h5 style="margin-bottom: 4px; padding-bottom: 0;">📊 2. 구독 효율성 심층 분석</h5>
                 <p style="color: #94a3b8; font-size: 0.8rem; margin: 0; padding: 0;">※ 기준: 유저별 OTT 구독료 합계 및 주간 시청 시간 기반 산출</p>
             </div>
         """, unsafe_allow_html=True)
 
-        q_col1, q_col2, q_col3, empty_space = st.columns([1, 1, 1.5, 5])
-        with q_col1:
-            st.markdown("<p style='margin-bottom:0px;'><small>🟠 <b>Light</b>: 주 3h 미만</small></p>", unsafe_allow_html=True)
-        with q_col2:
-            st.markdown("<p style='margin-bottom:0px;'><small>⚫ <b>Middle</b>: 주 3-12h</small></p>", unsafe_allow_html=True)
-        with q_col3:
-            st.markdown("<p style='margin-bottom:0px;'><small>🔴 <b>Heavy</b>: 주 12h 이상</small></p>", unsafe_allow_html=True)
+        # 2. HTML로 범례 한 줄 배치 (gap을 직접 조절 가능)
+        st.markdown("""
+            <div style="display: flex; gap: 32px; align-items: center; margin-top: 6px; margin-bottom: 10px;">
+                <span style="font-size: 0.8rem;">🟠 <b>Light</b>: 주 3h↓</span>
+                <span style="font-size: 0.8rem;">⚫ <b>Middle</b>: 주 3-12h</span>
+                <span style="font-size: 0.8rem;">🔴 <b>Heavy</b>: 주 12h↑</span>
+            </div>
+        """, unsafe_allow_html=True)
         
-        st.write("") # 미세한 간격 조정
         st.markdown("---")
 
         # 1. 총 구독료 계산 (제시된 모든 OTT 컬럼 합산)
@@ -427,8 +416,8 @@ class SkinVisualizer:
             # 막대: 유저 분포 (왼쪽 축)
             fig_left.add_trace(go.Bar(
                 x=l_stats['user_seg'], y=l_stats['user_count'],
-                name='해지 경험자(명)',
-                marker_color=['#F1AC90', '#94a3b8', '#FF6D74'],
+                name='해지 경험자 (명)',
+                marker_color=['#F1AC90', "#c5cbd3", '#FF6D74'],
                 text=l_stats['user_count'], 
                 textposition='inside', insidetextanchor='start',
                 yaxis='y1'
@@ -437,47 +426,86 @@ class SkinVisualizer:
             # 선: 해지 사유 응답률 (오른쪽 축)
             fig_left.add_trace(go.Scatter(
                 x=l_stats['user_seg'], y=l_stats['reason_rate'],
-                name='사유 응답률(%)',
+                name='해지 사유 응답률 (%)',
                 mode='lines+markers+text',
-                line=dict(color='#1f77b4', width=3),
+                line=dict(color=BRAND_COLORS.MAIN_MINT, width=3), # Config 참조
+                marker=dict(size=8, color=BRAND_COLORS.MAIN_MINT, line=dict(color='white', width=1)),
                 text=l_stats['reason_rate'].round(1).astype(str) + '%',
                 textposition='top center',
+                textfont=dict(color=BRAND_COLORS.MAIN_MINT, size=11), # 텍스트 색상까지 통일
                 yaxis='y2'
             ))
 
             fig_left.update_layout(
                 height=480,  # 축 제목 공간을 고려해 높이를 약간 증액
                 # 하단 마진(b)을 우측 차트와 동일하게 맞추고, 축 제목(title) 공간 확보
-                margin=dict(l=50, r=20, t=80, b=80), 
-                template="plotly_dark",
-                xaxis=dict(title="유저 쿼터", title_font=dict(size=14)),
-                yaxis=dict(title="해지 경험자 (명)", showgrid=False),
-                yaxis2=dict(title="사유 응답률 (%)", overlaying='y', side="right", range=[0, 150]),
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                margin=dict(l=50, r=60, t=80, b=80), 
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                # [수정] 타이틀 추가: 해지 경험자 & 민감도 키워드 반영
+                title=dict(
+                    text="<b>[해지 경험자] '접속 빈도 낮음' 선택률</b>",
+                    font=dict(size=16, color=BRAND_COLORS.SUB_TEXT),
+                    x=0, y=0.98, xanchor='left', yanchor='top'
+                ),
+                xaxis=dict(title="유저 쿼터", title_font=dict(size=13), tickfont=dict(size=12), zeroline=False),
+                yaxis=dict(title="해지 경험자 (명)", title_font=dict(size=12), showgrid=True, gridcolor="#F0F0F0", zeroline=False),
+                yaxis2=dict(
+                    # [수정] standoff를 추가하여 텍스트 겹침 방지
+                    title=dict(text="해지 사유 응답률 (%)", font=dict(size=12), standoff=15), 
+                    overlaying='y', 
+                    side="right", 
+                    range=[0, 100],
+                    showgrid=False, 
+                    zeroline=False,
+                    automargin=True  # 여백 자동 계산 활성화
+                ),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                showlegend=True
             )
-            st.plotly_chart(fig_left, use_container_width=True)
+            st.plotly_chart(fig_left, use_container_width=True, theme=None) # theme=None으로 테마 고정
 
         with col_right:
-            # 실제 가성비 산점도
+            # 1. 가성비 산점도 생성 (변수명: fig_right)
             y_limit = self.df['cost_per_hour'].quantile(0.95) * 1.1
+            
             fig_right = px.scatter(
                 self.df, x='ott_time_total', y='cost_per_hour',
                 color='user_seg', size='total_ott_fee',
-                color_discrete_map={'Light': "#F1AC90", 'Middle': '#94a3b8', 'Heavy': "#FF6D74"},
-                category_orders={"user_seg": ["Light", "Middle", "Heavy"]}, # 범례 순서 고정
-                labels={'ott_time_total': '주간 시청 시간 (h)', 'cost_per_hour': '시간당 비용 (원/h)', 'user_seg': '유저 쿼터'},
-                title="<b>[전체 유저] 시청 시간 대비 가성비 곡선</b>"
+                color_discrete_map={'Light': "#F1AC90", 'Middle': '#c5cbd3', 'Heavy': "#FF6D74"},
+                category_orders={"user_seg": ["Light", "Middle", "Heavy"]},
+                labels={'ott_time_total': '주간 시청 시간 (h)', 'cost_per_hour': '시간당 비용 (원/h)', 'user_seg': '유저 쿼터'}
             )
 
+            # 2. 레이아웃 업데이트 (이제 fig_right가 정의되었으므로 에러가 나지 않습니다)
             fig_right.update_layout(
-                height=480, # 좌측과 동일하게 맞춤
-                # 하단 마진(b)을 좌측과 동일하게 80으로 통일
+                height=480,
                 margin=dict(l=50, r=50, t=80, b=80),
+                paper_bgcolor="rgba(0,0,0,0)", # 배경 투명화
+                plot_bgcolor="rgba(0,0,0,0)",  # 차트 영역 투명화
+                title=dict(
+                    text="<b>[전체 응답자] 시청 시간 대비 가성비 곡선</b>",
+                    font=dict(size=16, color=BRAND_COLORS.SUB_TEXT), # 왼쪽과 색상/크기 통일
+                    x=0, y=0.98, xanchor='left', yanchor='top'
+                ),
                 legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                template="plotly_dark"
+                xaxis=dict(
+                    title_font=dict(size=13), 
+                    tickfont=dict(size=12), 
+                    gridcolor="#F0F0F0", 
+                    zeroline=False
+                ),
+                yaxis=dict(
+                    range=[0, y_limit], 
+                    title_font=dict(size=13), 
+                    tickfont=dict(size=12), 
+                    gridcolor="#F0F0F0", 
+                    zeroline=False
+                )
             )
-            fig_right.update_yaxes(range=[0, y_limit])
-            st.plotly_chart(fig_right, use_container_width=True)
+            
+            # 3. 차트 출력 (theme=None 필수)
+            st.plotly_chart(fig_right, use_container_width=True, theme=None)
 
         # 3. 하단 요약 지표 및 인사이트
         st.markdown("---")
@@ -485,17 +513,16 @@ class SkinVisualizer:
         eff_stats = self.df.groupby('user_seg', observed=True)['cost_per_hour'].mean()
 
         m1, m2, m3 = st.columns(3)
-
         indent_width = "22px" 
-
+        
         with m1:
             st.markdown(f"""
                 <div style="display: flex; justify-content: center; width: 100%;">
                     <div style="text-align: left;">
-                        <p style="color: #94a3b8; font-size: 0.9rem; margin: 0 0 4px 0;">📊 전체 평균 가성비</p>
+                        <p style="font-size: 0.9rem; margin: 0 0 4px 0;">⚫ 전체 평균 가성비</p>
                         <div style="display: flex; align-items: baseline; padding-left: {indent_width};">
-                            <span style="color: white; font-size: 1.8rem; font-weight: bold;">{int(avg_eff):,}</span>
-                            <span style="color: white; font-size: 1rem; margin-left: 4px;">원/h</span>
+                            <span style="font-size: 1.8rem; font-weight: bold;">{int(avg_eff):,}</span>
+                            <span style="font-size: 1rem; margin-left: 4px;">원/h</span>
                         </div>
                     </div>
                 </div>
@@ -505,10 +532,10 @@ class SkinVisualizer:
             st.markdown(f"""
                 <div style="display: flex; justify-content: center; width: 100%;">
                     <div style="text-align: left;">
-                        <p style="color: #F1AC90; font-size: 0.9rem; margin: 0 0 4px 0;">🟠 Light 평균 가성비</p>
+                        <p style="color: #f79872; font-size: 0.9rem; margin: 0 0 4px 0;">🟠 Light 평균 가성비</p>
                         <div style="display: flex; align-items: baseline; padding-left: {indent_width};">
-                            <span style="color: white; font-size: 1.8rem; font-weight: bold;">{int(eff_stats.get('Light', 0)):,}</span>
-                            <span style="color: white; font-size: 1rem; margin-left: 4px;">원/h</span>
+                            <span style="font-size: 1.8rem; font-weight: bold;">{int(eff_stats.get('Light', 0)):,}</span>
+                            <span style="font-size: 1rem; margin-left: 4px;">원/h</span>
                         </div>
                     </div>
                 </div>
@@ -520,8 +547,8 @@ class SkinVisualizer:
                     <div style="text-align: left;">
                         <p style="color: #FF6D74; font-size: 0.9rem; margin: 0 0 4px 0;">🔴 Heavy 평균 가성비</p>
                         <div style="display: flex; align-items: baseline; padding-left: {indent_width};">
-                            <span style="color: white; font-size: 1.8rem; font-weight: bold;">{int(eff_stats.get('Heavy', 0)):,}</span>
-                            <span style="color: white; font-size: 1rem; margin-left: 4px;">원/h</span>
+                            <span style="font-size: 1.8rem; font-weight: bold;">{int(eff_stats.get('Heavy', 0)):,}</span>
+                            <span style="font-size: 1rem; margin-left: 4px;">원/h</span>
                         </div>
                     </div>
                 </div>
@@ -529,50 +556,56 @@ class SkinVisualizer:
 
         # [2] 핵심 인사이트 (박스 없이 깔끔한 텍스트 위계)
         st.markdown("---")
-        title_indent = "28px" 
-
-        # 타이틀 (한 줄 렌더링)
-        st.markdown(f'<div style="margin: 30px 0 20px 0;"><p style="color: white; margin: 0; font-size: 1.05rem; font-weight: bold;">🎯 핵심 인사이트: <span style="color: #cbd5e1; font-weight: normal;">유저 성향에 따른 \'구독 최적화\'의 이중 가치</span></p></div>', unsafe_allow_html=True)
-        
-        # 공통 아이콘 스타일 (잘림 방지 및 뒤쪽 공백 추가)
         icon_style = 'min-width: 25px; font-size: 1.1rem; line-height: 1.4; display: flex; align-items: center; margin-right: 8px;'
+        desc_style = 'font-size: 0.92rem; line-height: 1.6;'
 
-        # Light 내용
-        light_content = (
-            '<div style="flex: 1;">' # 비중 1:1로 복구
-                '<div style="display: flex; align-items: flex-start; margin-bottom: 25px;">'
-                    f'<div style="{icon_style}">🟠</div>'
-                    '<div>'
-                        '<p style="font-weight: bold; margin: 0 0 8px 0; font-size: 1rem; color: #F1AC90;">Light (구독 방치형)</p>'
-                        '<div style="color: #cbd5e1; font-size: 0.92rem; line-height: 1.6;">'
-                            '<p style="margin: 0 0 6px 0;">"언젠간 보겠지"라는 막연한 기대 → 낮은 이용 패턴 인지할 때 해지 발생</p>'
-                            '<p style="margin: 0; display: flex; align-items: flex-start;"><span style="margin-right: 8px; line-height: 1.4;">💡</span><span><b>\'방치된 구독료\' 시각화 + 해지 알림</b></span></p>'
-                        '</div>'
-                    '</div>'
-                '</div>'
-            '</div>'
-        )
-        
-        # Heavy 내용
-        heavy_content = (
-            '<div style="flex: 1;">' # 비중 1:1로 복구
-                '<div style="display: flex; align-items: flex-start; margin-bottom: 25px;">'
-                    f'<div style="{icon_style}">🔴</div>'
-                    '<div>'
-                        '<p style="font-weight: bold; margin: 0 0 8px 0; font-size: 1rem; color: #FF6D74;">Heavy (전략적 체리피커)</p>'
-                        '<div style="color: #cbd5e1; font-size: 0.92rem; line-height: 1.6;">'
-                            '<p style="margin: 0 0 6px 0; white-space: nowrap;">최고 가성비를 누리면서도 이용 효율 저하에 가장 민감하게 반응하는 핵심 집단</p>'
-                            '<p style="margin: 0; display: flex; align-items: flex-start;"><span style="margin-right: 8px; line-height: 1.4;">💡</span><span><b>체계적인 콘텐츠 소비를 돕는 \'구독 스케줄링\'</b></span></p>'
-                        '</div>'
-                    '</div>'
-                '</div>'
-            '</div>'
-        )
+        # 2. 전체를 중앙으로 모으는 컨테이너 렌더링
+        st.markdown(f'''
+            <div style="max-width: 1100px; margin: 0 auto; padding: 0 20px;">
+                
+                <div style="margin: 30px 0 30px 0; text-align: center;">
+                    <h5 style="margin: 0; font-size: 1.05rem; font-weight: bold;">
+                        🎯 핵심 인사이트: <span style="font-weight: normal;">유저 성향에 따른 '구독 최적화'의 이중 가치</span>
+                    </h5>
+                </div>
 
-        # 전체 너비를 1100px로 유지하되 gap을 40px로 줄여서 응집력 있게 배치
-        final_insight_html = f'<div style="display: flex; gap: 40px; padding-left: {title_indent}; max-width: 1100px; align-items: flex-start;">{light_content}{heavy_content}</div>'
-        
-        st.markdown(final_insight_html, unsafe_allow_html=True)
+                <div style="display: flex; gap: 60px; justify-content: center; align-items: flex-start;">
+                    
+                    <div style="flex: 1; min-width: 300px;">
+                        <div style="display: flex; align-items: flex-start; margin-bottom: 25px;">
+                            <div style="{icon_style}">🟠</div>
+                            <div>
+                                <p style="font-weight: bold; margin: 0 0 8px 0; font-size: 1rem; color: #f79872;">Light (구독 방치형)</p>
+                                <div style="{desc_style}">
+                                    <p style="margin: 0 0 6px 0;">"언젠간 보겠지"라는 막연한 기대 → 낮은 이용 패턴 인지할 때 해지 발생</p>
+                                    <p style="margin: 0; display: flex; align-items: flex-start;">
+                                        <span style="margin-left: 2px; margin-right: 8px; line-height: 1.4;">💡</span>
+                                        <span><b>'방치된 구독료' 시각화 + 해지 알림</b></span>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="flex: 1; min-width: 300px;">
+                        <div style="display: flex; align-items: flex-start; margin-bottom: 25px;">
+                            <div style="{icon_style}">🔴</div>
+                            <div>
+                                <p style="font-weight: bold; margin: 0 0 8px 0; font-size: 1rem; color: #FF6D74;">Heavy (전략적 체리피커)</p>
+                                <div style="{desc_style}">
+                                    <p style="margin: 0 0 6px 0;">최고 가성비를 누리면서도 이용 효율 저하에 가장 민감하게 반응하는 핵심 집단</p>
+                                    <p style="margin: 0; display: flex; align-items: flex-start;">
+                                        <span style="margin-left: 2px; margin-right: 8px; line-height: 1.4;">💡</span>
+                                        <span><b>체계적인 콘텐츠 소비를 돕는 '구독 스케줄링'</b></span>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        ''', unsafe_allow_html=True)
 
     def plot_pain_correlation(self):
         st.markdown(f"<h5 style='font-weight:600; margin-bottom:6px;'>📊 1. 구독 비용 및 개수와 관리 피로도의 관계</h5>", unsafe_allow_html=True)
