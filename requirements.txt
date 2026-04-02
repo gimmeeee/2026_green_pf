@@ -16,3 +16,4 @@ google-auth
 sentence-transformers
 google-generativeai
 streamlit-float
+wordcloud

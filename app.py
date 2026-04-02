@@ -74,6 +74,11 @@ def render_visual_dashboard(df):
     viz.plot_pain_correlation()
     viz.plot_market_expansion()
 
+    # Part 4: Wordcloud
+    st.header("Part4.")
+    st.divider()
+    viz.plot_subjective_wordcloud()
+
 # 3. 플로팅 챗봇 UI
 def on_send():
     if st.session_state.chat_input_val:

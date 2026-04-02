@@ -1,6 +1,8 @@
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
+from wordcloud import WordCloud
+import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 from config import BRAND_COLORS
@@ -129,6 +131,10 @@ class SkinVisualizer:
         left_col, right_col = st.columns([1.2, 1])
 
         with left_col:
+            # 1. 시각화용 데이터를 따로 만듭니다. (그룹별로 평균 점수를 미리 계산)
+            # 이렇게 하면 Plotly가 멋대로 합산할 여지를 주지 않습니다.
+            sunburst_df = high_intent.groupby(['gender', 'job', 'age_group'])['usage_intent'].mean().reset_index()
+            
             # 선버스트 차트: 성별 -> 직업 -> 연령 순으로 계층 구조 시각화
             fig_sun = px.sunburst(
                 high_intent, 
@@ -139,17 +145,26 @@ class SkinVisualizer:
                 color_continuous_scale=BRAND_COLORS.SUNBURST_SCALE,
                 height=700,
             )
-            fig_sun.update_layout(**self.common_layout,
-                margin=dict(t=40, b=20, l=20, r=20), 
-                coloraxis_showscale=False,
-            )
-            # 퍼센트와 라벨이 함께 나오도록 수정
+            # 기존 레이아웃 설정을 복사해서 중복 에러 방지
+            layout_settings = self.common_layout.copy()
+            layout_settings.update({
+                "margin": dict(t=60, b=20, l=20, r=20),
+                "paper_bgcolor": "rgba(0,0,0,0)", 
+                "plot_bgcolor": "rgba(0,0,0,0)",  
+                "coloraxis_showscale": True  # 그라디언트 범주(scale) 다시 표시
+            })
+
+            fig_sun.update_layout(**layout_settings)
             fig_sun.update_traces(
+                # [포인트 1] 흰색 테두리 대신 배경색에 녹아드는 어두운 투명 테두리
+                # 이렇게 해야 다크모드에서 브랜드 컬러가 둥둥 떠 보이지 않습니다.
+                marker=dict(line=dict(color='rgba(0, 0, 0, 0.1)', width=0.8)),
+                
                 textinfo="label+percent parent",
-                hovertemplate='<b>%{label}</b><br>사용의향 합계: %{value}<br>비중: %{percentParent:.1%}',
-                marker_line_width=1.5,
-                marker_line_color="rgba(255, 255, 255, 0.3)", 
-                insidetextorientation='radial',
+                
+                # [포인트 3] 호버 툴팁 깔끔하게 정리
+                hovertemplate='<b>%{label}</b><br>평균 사용의향: %{color:.2f}점<extra></extra>',
+                textfont=dict(size=12)
             )
             st.plotly_chart(fig_sun, use_container_width=True)
 
@@ -258,7 +273,10 @@ class SkinVisualizer:
                              color_continuous_scale=["#FFF6F5", "#FACEC8", "#F1A197"]) # 연함 -> 진함
                 
                 fig.update_traces(
-                    text=counts.values, textposition='outside', textfont=dict(size=12), 
+                    text=counts.values, 
+                    textposition='outside', 
+                    # 컬러(color) 속성을 삭제하여 테마에 맡김
+                    textfont=dict(size=12), 
                     cliponaxis=False,
                     marker=dict(line=dict(color=borders, width=line_widths))
                 )
@@ -266,29 +284,34 @@ class SkinVisualizer:
                 fig.update_layout(
                     paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                     title=dict(text="<b>전체 해지 사유 (복수 응답)</b>", font=dict(size=16, color=BRAND_COLORS.SUB_TEXT), x=0, y=0.98, xanchor='left', yanchor='top'),
-                    xaxis=dict(title=dict(text="응답 수", font=dict(size=12)), tickfont=dict(size=12), gridcolor="#F0F0F0", showgrid=True, zeroline=False),
+                    #xaxis, yaxis의 font color 설정을 모두 삭제
+                    xaxis=dict(title=dict(text="응답 수", font=dict(size=12)), tickfont=dict(size=12), gridcolor="rgba(128, 128, 128, 0.1)", showgrid=True, zeroline=False),
                     yaxis=dict(title=None, tickfont=dict(size=12), showline=False, automargin=True, ticksuffix="   "),
                     height=450, margin=dict(l=50, r=50, t=50, b=50), 
                     showlegend=False,
-                    coloraxis_showscale=False # 우측 컬러바 제거
+                    coloraxis_showscale=False
                 )
-                st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False}, theme=None)
+                # theme="streamlit" (기본값)을 명시하거나 theme=None을 제거하여 테마 연동
+                st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
                 
+        # --- [col2] 결정적 해지 사유 ---
         with col2:
             if 'ott_cancel_reason_primary' in self.df.columns:
                 primary_series = self.df['ott_cancel_reason_primary'].astype(str).str.strip()
                 primary_series = primary_series[primary_series.str.lower() != 'nan']
                 counts_p = primary_series.value_counts().sort_values(ascending=True)
             
-                borders_p = ['#E0E0E0' if v <= 5 else 'rgba(0,0,0,0)' for v in counts.values]
-                line_widths_p = [1 if v <= 5 else 0 for v in counts.values]
+                borders_p = ['#E0E0E0' if v <= 5 else 'rgba(0,0,0,0)' for v in counts_p.values]
+                line_widths_p = [1 if v <= 5 else 0 for v in counts_p.values]
 
                 fig_p = px.bar(counts_p, orientation='h', template=None,
                                color=counts_p.values,
                                color_continuous_scale=["#ECFFF9", "#ABE6D6", "#0BB085"])
         
                 fig_p.update_traces(
-                    text=counts_p.values, textposition='outside', textfont=dict(size=12), 
+                    text=counts_p.values, 
+                    textposition='outside', 
+                    textfont=dict(size=12), 
                     cliponaxis=False,
                     marker=dict(line=dict(color=borders_p, width=line_widths_p))
                 )
@@ -296,13 +319,14 @@ class SkinVisualizer:
                 fig_p.update_layout(
                     paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                     title=dict(text="<b>결정적 해지 사유 (단일 응답)</b>", font=dict(size=16, color=BRAND_COLORS.SUB_TEXT), x=0, y=0.98, xanchor='left', yanchor='top'),
-                    xaxis=dict(title=dict(text="응답 수", font=dict(size=12)), tickfont=dict(size=12), gridcolor="#F0F0F0", showgrid=True, zeroline=False),
+                    xaxis=dict(title=dict(text="응답 수", font=dict(size=12)), tickfont=dict(size=12), gridcolor="rgba(128, 128, 128, 0.1)", showgrid=True, zeroline=False),
                     yaxis=dict(title=None, tickfont=dict(size=12), showline=False, automargin=True, ticksuffix="   "),
                     height=450, margin=dict(l=50, r=50, t=50, b=50),
                     showlegend=False,
-                    coloraxis_showscale=False # 우측 컬러바 제거
+                    coloraxis_showscale=False
                 )
-                st.plotly_chart(fig_p, use_container_width=True, config={'displayModeBar': False}, theme=None)
+                # theme=None을 지워서 Streamlit 기본 테마 컬러를 쓰도록 함
+                st.plotly_chart(fig_p, use_container_width=True, config={'displayModeBar': False})
 
         if 'ott_cancel_reason_primary' in self.df.columns:
             
@@ -326,14 +350,24 @@ class SkinVisualizer:
             
             c_indent = "28px"
 
+            # 배경색은 rgba로 유지 (배경색에 따라 자동 투명도 조절)
+            # 강조용 컬러 정의 (라이트에서도 잘 보이고 다크에서도 묻히지 않는 최적의 톤)
+            accent_color = "#14B8A6" # 기존보다 채도가 살짝 낮고 명도가 낮은 민트
+
             full_html = (
-                f'<div style="background-color: #F0FDFA; padding: 22px; border-radius: 12px; border-left: 5px solid #2DD4BF; margin-bottom: 25px; font-family: sans-serif; border: 1px solid #CCFBF1;">'
-                    f'<p style="color: #0D9488; font-weight: bold; margin: 0 0 12px 0; font-size: 0.95rem; letter-spacing: 0.5px;">🎯 핵심 트리거 분석 결과</p>'
+                f'<div style="background-color: rgba(45, 212, 191, 0.12); padding: 22px; border-radius: 12px; border-left: 5px solid {accent_color}; margin-bottom: 25px; font-family: sans-serif; border: 1px solid rgba(45, 212, 191, 0.2);">'
+                    f'<p style="color: {accent_color}; font-weight: bold; margin: 0 0 12px 0; font-size: 0.95rem; letter-spacing: 0.5px;">🎯 핵심 트리거 분석 결과</p>'
                     f'<div style="padding-left: {c_indent};">'
-                        f'<p style="color: #111827; font-size: 1.1rem; margin: 0 0 15px 0; line-height: 1.5; font-weight: 600;">현재 유저들이 해지를 결정하는 결정적 요인은 <span style="color: #0D9488; font-weight: bold; border-bottom: 2px solid #2DD4BF;">\'{top_primary}\'</span>입니다.</p>'
-                        f'<div style="border-top: 1px solid #CCFBF1; padding-top: 15px;">'
-                            f'<p style="margin: 0 0 8px 0; color: #374151; font-size: 0.92rem; line-height: 1.6;">이는 "내가 지불하는 비용만큼 충분히 이용하고 있는가?"라는 <span style="color: #059669; font-weight: bold;">\'효율성\'</span>의 문제에서 시작됩니다.</p>'
-                            f'<p style="margin: 0; color: #374151; font-size: 0.92rem; line-height: 1.6;"><span style="color: #0D9488; font-weight: bold;">[{target_solution}]</span>을 최우선으로 제공해야 한다는 인사이트를 줍니다.</p>'
+                        f'<p style="font-size: 1.1rem; margin: 0 0 15px 0; line-height: 1.5; font-weight: 600;">'
+                            f'현재 유저들이 해지를 결정하는 결정적 요인은 <span style="color: {accent_color}; font-weight: bold; border-bottom: 2px solid {accent_color}44;">\'{top_primary}\'</span>입니다.'
+                        f'</p>'
+                        f'<div style="border-top: 1px solid rgba(45, 212, 191, 0.2); padding-top: 15px;">'
+                            f'<p style="margin: 0 0 8px 0; font-size: 0.92rem; line-height: 1.6;">'
+                                f'이는 "내가 지불하는 비용만큼 충분히 이용하고 있는가?"라는 <span style="color: {accent_color}; font-weight: bold;">\'효율성\'</span>의 문제에서 시작됩니다.'
+                            f'</p>'
+                            f'<p style="margin: 0; font-size: 0.92rem; line-height: 1.6;">'
+                                f'<span style="color: {accent_color}; font-weight: bold;">[{target_solution}]</span>을 최우선으로 제공해야 한다는 인사이트가 될 수 있습니다.'
+                            f'</p>'
                         f'</div>'
                     f'</div>'
                 f'</div>'
@@ -449,7 +483,7 @@ class SkinVisualizer:
                     x=0, y=0.98, xanchor='left', yanchor='top'
                 ),
                 xaxis=dict(title="유저 쿼터", title_font=dict(size=13), tickfont=dict(size=12), zeroline=False),
-                yaxis=dict(title="해지 경험자 (명)", title_font=dict(size=12), showgrid=True, gridcolor="#F0F0F0", zeroline=False),
+                yaxis=dict(title="해지 경험자 (명)", title_font=dict(size=12), showgrid=True, gridcolor="rgba(128, 128, 128, 0.1)", zeroline=False),
                 yaxis2=dict(
                     # [수정] standoff를 추가하여 텍스트 겹침 방지
                     title=dict(text="해지 사유 응답률 (%)", font=dict(size=12), standoff=15), 
@@ -492,14 +526,14 @@ class SkinVisualizer:
                 xaxis=dict(
                     title_font=dict(size=13), 
                     tickfont=dict(size=12), 
-                    gridcolor="#F0F0F0", 
+                    gridcolor="rgba(128, 128, 128, 0.1)", 
                     zeroline=False
                 ),
                 yaxis=dict(
                     range=[0, y_limit], 
                     title_font=dict(size=13), 
                     tickfont=dict(size=12), 
-                    gridcolor="#F0F0F0", 
+                    gridcolor="rgba(128, 128, 128, 0.1)", 
                     zeroline=False
                 )
             )
@@ -554,58 +588,15 @@ class SkinVisualizer:
                 </div>
             """, unsafe_allow_html=True)
 
-        # [2] 핵심 인사이트 (박스 없이 깔끔한 텍스트 위계)
+        # [2] 핵심 인사이트 (폭 확대 + 마진 축소 + 디자인 디테일 개선)
         st.markdown("---")
-        icon_style = 'min-width: 25px; font-size: 1.1rem; line-height: 1.4; display: flex; align-items: center; margin-right: 8px;'
-        desc_style = 'font-size: 0.92rem; line-height: 1.6;'
-
-        # 2. 전체를 중앙으로 모으는 컨테이너 렌더링
-        st.markdown(f'''
-            <div style="max-width: 1100px; margin: 0 auto; padding: 0 20px;">
-                
-                <div style="margin: 30px 0 30px 0; text-align: center;">
-                    <h5 style="margin: 0; font-size: 1.05rem; font-weight: bold;">
-                        🎯 핵심 인사이트: <span style="font-weight: normal;">유저 성향에 따른 '구독 최적화'의 이중 가치</span>
-                    </h5>
-                </div>
-
-                <div style="display: flex; gap: 60px; justify-content: center; align-items: flex-start;">
-                    
-                    <div style="flex: 1; min-width: 300px;">
-                        <div style="display: flex; align-items: flex-start; margin-bottom: 25px;">
-                            <div style="{icon_style}">🟠</div>
-                            <div>
-                                <p style="font-weight: bold; margin: 0 0 8px 0; font-size: 1rem; color: #f79872;">Light (구독 방치형)</p>
-                                <div style="{desc_style}">
-                                    <p style="margin: 0 0 6px 0;">"언젠간 보겠지"라는 막연한 기대 → 낮은 이용 패턴 인지할 때 해지 발생</p>
-                                    <p style="margin: 0; display: flex; align-items: flex-start;">
-                                        <span style="margin-left: 2px; margin-right: 8px; line-height: 1.4;">💡</span>
-                                        <span><b>'방치된 구독료' 시각화 + 해지 알림</b></span>
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div style="flex: 1; min-width: 300px;">
-                        <div style="display: flex; align-items: flex-start; margin-bottom: 25px;">
-                            <div style="{icon_style}">🔴</div>
-                            <div>
-                                <p style="font-weight: bold; margin: 0 0 8px 0; font-size: 1rem; color: #FF6D74;">Heavy (전략적 체리피커)</p>
-                                <div style="{desc_style}">
-                                    <p style="margin: 0 0 6px 0;">최고 가성비를 누리면서도 이용 효율 저하에 가장 민감하게 반응하는 핵심 집단</p>
-                                    <p style="margin: 0; display: flex; align-items: flex-start;">
-                                        <span style="margin-left: 2px; margin-right: 8px; line-height: 1.4;">💡</span>
-                                        <span><b>체계적인 콘텐츠 소비를 돕는 '구독 스케줄링'</b></span>
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                </div>
-            </div>
-        ''', unsafe_allow_html=True)
+        for _ in range(2): st.write("")
+        
+        # 모든 줄바꿈과 공백을 제거하여 마크다운이 '코드'로 오해할 여지를 없앤 버전입니다.
+        html_code = """<div style="max-width:1200px;margin:0 auto;font-family:sans-serif;"><div style="text-align:center;margin-bottom:10px;"><h5 style="margin:0;font-size:1.2rem;font-weight:bold;line-height:1.8;">🎯 핵심 인사이트: <span style="font-weight:normal;">유저 성향에 따른 '구독 최적화'의 이중 가치</span></h5></div><div style="display:flex;gap:20px;justify-content:center;align-items:stretch;"><div style="flex:1; background-color: rgba(255, 255, 255, 0.15); border: 1px solid rgba(255, 255, 255, 0.1); border-radius:16px; padding:28px 32px; box-shadow:0 4px 6px -1px rgba(0,0,0,0.1);"><div style="display:flex;align-items:center;margin-bottom:16px;"><span style="font-size:1.4rem;margin-right:12px;">🟠</span><span style="font-weight:bold;font-size:1.1rem;color:#f79872;">Light <span style="font-weight:normal;font-size:0.85rem;">(구독 방치형)</span></span></div><div style="font-size:0.98rem;line-height:1.6;"><p style="margin:0 0 18px 0;letter-spacing:-0.2px;">"언젠간 보겠지"라는 막연한 기대 → 낮은 이용 패턴 인지할 때 해지 발생</p><div style="background-color:rgba(247, 152, 114, 0.1);border:1px solid rgba(247, 152, 114, 0.2);border-radius:10px;padding:14px 16px;"><p style="margin:0;display:flex;align-items:center;color:#f79872;font-size:0.93rem;"><span style="margin-right:8px;">💡</span><b>'방치된 구독료' 시각화 + 해지 알림</b></p></div></div></div><div style="flex:1; background-color: rgba(255, 255, 255, 0.15); border: 1px solid rgba(255, 255, 255, 0.1); border-radius:16px; padding:28px 32px; box-shadow:0 4px 6px -1px rgba(0,0,0,0.1);"><div style="display:flex;align-items:center;margin-bottom:16px;"><span style="font-size:1.4rem;margin-right:12px;">🔴</span><span style="font-weight:bold;font-size:1.1rem;color:#FF6D74;">Heavy <span style="font-weight:normal;font-size:0.85rem;">(전략적 체리피커)</span></span></div><div style="font-size:0.98rem;line-height:1.6;"><p style="margin:0 0 18px 0;letter-spacing:-0.2px;">최고 가성비를 누리면서도 이용 효율 저하에 가장 민감하게 반응하는 핵심 집단</p><div style="background-color:rgba(255, 109, 116, 0.1);border:1px solid rgba(255, 109, 116, 0.2);border-radius:10px;padding:14px 16px;"><p style="margin:0;display:flex;align-items:center;color:#FF6D74;font-size:0.93rem;"><span style="margin-right:8px;">💡</span><b>체계적인 콘텐츠 소비를 돕는 '구독 스케줄링'</b></p></div></div></div></div></div>"""
+        
+        st.markdown(html_code, unsafe_allow_html=True)
+        for _ in range(4): st.write("")
 
     def plot_pain_correlation(self):
         st.markdown(f"<h5 style='font-weight:600; margin-bottom:6px;'>📊 1. 구독 비용 및 개수와 관리 피로도의 관계</h5>", unsafe_allow_html=True)
@@ -698,3 +689,65 @@ class SkinVisualizer:
                 if len(plot_df) > 1:
                     second_cat = plot_df.iloc[1]['카테고리']
                     st.success(f"🚀 **확장 전략:** 초기 서비스는 OTT에 이어 점유율 2위인 **'{second_cat}'** 카테고리를 함께 공략해야 합니다.")
+
+    def plot_subjective_wordcloud(self):
+        """Part 4: 주관식 응답 워드클라우드 (안정적인 오리지널 버전)"""
+        st.markdown("<br><br>", unsafe_allow_html=True)
+        st.markdown(f"<h5 style='font-weight:600; margin-bottom:15px;'>📝 Part 4. 유저 니즈 심층 분석 (VOC)</h5>", unsafe_allow_html=True)
+
+        # 1. 데이터 추출 및 단어 빈도수 계산
+        text_data = self.df['usage_expect'].dropna().astype(str).tolist()
+        words = []
+        stop_words = ['수', '내', '등', '것', '및', '위해', '통해', '대한', '있는', '알', '함', '앱', '어플', '구독', '서비스']
+        
+        for text in text_data:
+            cleaned = "".join([c if c.isalnum() or c.isspace() else " " for c in text])
+            for word in cleaned.split():
+                if len(word) > 1 and word not in stop_words:
+                    words.append(word)
+        
+        from collections import Counter
+        word_counts = dict(Counter(words).most_common(40))
+
+        if not word_counts:
+            st.info("분석할 주관식 응답 데이터가 부족합니다.")
+            return
+
+        # 2. 워드클라우드 생성 (디자인 커스텀)
+        # font_path는 윈도우 기본 폰트인 맑은 고딕을 사용합니다.
+        wc = WordCloud(
+            font_path='malgun.ttf', 
+            background_color='white', # 다크모드에서 시인성을 위해 흰색 배경 또는 투명 설정
+            mode='RGB',
+            width=800,
+            height=450,
+            colormap='viridis', # 세련된 컬러셋
+            max_words=40
+        ).generate_from_frequencies(word_counts)
+
+        # --- 레이아웃 배치 ---
+        col1, col2 = st.columns([1.5, 1])
+        
+        with col1:
+            st.markdown('<div style="background-color: white; padding: 10px; border-radius: 10px;">', unsafe_allow_html=True)
+            st.image(wc.to_array(), use_container_width=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+
+        with col2:
+            st.markdown("""
+                <div style="background-color: rgba(255,255,255,0.05); padding: 20px; border-radius: 12px; border-left: 4px solid #14B8A6;">
+                    <p style="font-size: 0.95rem; line-height: 1.7; margin: 0;">
+                        <b>주요 키워드 분석</b><br>
+                        유저들은 실질적인 <b>관리 효율성</b>과 <b>결제 알림</b>에 대해 가장 큰 기대를 보이고 있습니다.
+                    </p>
+                </div>
+            """, unsafe_allow_html=True)
+            
+            # 실제 VOC 샘플 출력
+            sample_voc = self.df['usage_expect'].dropna().sample(min(3, len(self.df))).tolist()
+            for voc in sample_voc:
+                st.markdown(f"""
+                    <div style="margin-top: 10px; background-color: rgba(255,255,255,0.02); padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
+                        <p style="font-size: 0.85rem; color: #cbd5e1; margin: 0;">"{voc}"</p>
+                    </div>
+                """, unsafe_allow_html=True)
