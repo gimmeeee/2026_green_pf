@@ -857,8 +857,9 @@ class SkinVisualizer:
         word_counts = Counter(words)
 
         # 여기서 한번 더 강제 삭제 (Okt가 어떻게 쪼갰든 상관없이 무조건 컷)
-        bad_words = ['생각나지', '않음', '생각', '모름', '기타', '생각나지 않음', '안남']
-        for bad_word in bad_words:
+        blacklist = stop_words + ['생각나지 않음', '모르겠음', '기타', '안남', '안나요']
+
+        for bad_word in blacklist:
             if bad_word in word_counts:
                 del word_counts[bad_word]
 

@@ -4,6 +4,7 @@ from modules.data_manager import SheetManager
 from modules.visualizer import SkinVisualizer
 from pages.form.normal import show_normal_form
 from modules.chatbot import SkinChatbot
+from modules.appendix import show_appendix_page
 from streamlit_float import *
 import time
 from config import BRAND_COLORS
@@ -333,6 +334,12 @@ def main():
     
     elif menu == "Survey Page":
         show_normal_form()
+
+    elif menu == "부록":
+        if not df.empty:
+            show_appendix_page(df)
+        else:
+            st.warning("데이터가 없어 페이지를 표시할 수 없습니다.")
 
     # 챗봇 UI 호출 (맨 마지막에 호출해야 레이어 순서가 가장 위로 올라감)
     render_chatbot_ui()

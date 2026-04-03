@@ -1,6 +1,8 @@
 streamlit
 pandas
 plotly
+matplotlib
+scipy
 gspread
 python-dotenv
 langchain
