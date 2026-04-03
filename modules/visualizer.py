@@ -5,7 +5,7 @@ from wordcloud import WordCloud
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
-from konlpy.tag import Okt
+# from konlpy.tag import Okt
 from config import BRAND_COLORS
 from collections import Counter
 
@@ -812,7 +812,14 @@ class SkinVisualizer:
 
         # 1. 데이터 추출 및 단어 빈도수 계산
         raw_texts = self.df['usage_expect'].dropna().astype(str).tolist()
-        words = []
+
+        import json
+        with open("word_counts.json", "r", encoding="utf-8") as f:
+            word_counts = json.load(f)
+
+        sorted_words = list(word_counts.keys())
+
+        # words = []
 
         # [정규화 맵핑] 워드클라우드에서 한 덩어리로 보일 핵심 키워드들
         normalization_map = {
@@ -824,7 +831,7 @@ class SkinVisualizer:
             "구독 맞춤 추천": ["구독 추천", "맞춤추천", "서비스 추천", "카테고리별 추천", "관리 추천"]
         }
 
-        # 1. 강력한 통합 블랙리스트 (보이는 족족 여기에 추가하세요)
+        # 1. 강력한 통합 블랙리스트 (로컬/배포환경 차이 방지용)
         final_blacklist = [
             '수', '내', '등', '것', '및', '위해', '통해', '대한', '있는', '알', '함', '앱', '어플', 
             '없음', '딱히', '생각', '않음', '생각나지', '모르겠음', '좋겠어요', '진짜', '너무', 
@@ -832,40 +839,45 @@ class SkinVisualizer:
             '생각나지 않음', '기타', '없습니다', '생각이', '맞춤', '같은거', '보기', '정말', '많이'
         ]
 
-        try:
-            from konlpy.tag import Okt
-            okt = Okt()
+        # try:
+        #     from konlpy.tag import Okt
+        #     okt = Okt()
             
-            for text in raw_texts:
-                matched_rep = None
-                # 정규화 먼저 체크
-                for rep, targets in normalization_map.items():
-                    if any(target in text for target in targets):
-                        matched_rep = rep
-                        break
+        #     for text in raw_texts:
+        #         matched_rep = None
+        #         # 정규화 먼저 체크
+        #         for rep, targets in normalization_map.items():
+        #             if any(target in text for target in targets):
+        #                 matched_rep = rep
+        #                 break
                 
-                if matched_rep:
-                    words.append(matched_rep)
-                else:
-                    # 정규화에 안 걸린 경우만 형태소 분석
-                    nouns = okt.nouns(text)
-                    words.extend(nouns)
-        except:
-            for text in raw_texts:
-                words.extend(text.split())
+        #         if matched_rep:
+        #             words.append(matched_rep)
+        #         else:
+        #             # 정규화에 안 걸린 경우만 형태소 분석
+        #             nouns = okt.nouns(text)
+        #             words.extend(nouns)
+        # except:
+        #     for text in raw_texts:
+        #         words.extend(text.split())
 
         # 2. [필터링 핵심] 리스트 단계에서 전수 조사
         # - 블랙리스트에 없어야 함
         # - 2글자 이상이어야 함
         # - normalization_map의 '키'값들은 무조건 통과 (이미 위에서 넣었으므로)
-        final_words = [
-            w for w in words 
-            if (w in normalization_map.keys()) or (w not in final_blacklist and len(w) > 1)
-        ]
+        # final_words = [
+        #     w for w in words 
+        #     if (w in normalization_map.keys()) or (w not in final_blacklist and len(w) > 1)
+        # ]
 
-        # 3. 빈도 계산
-        counts_obj = Counter(final_words)
-        word_counts = dict(counts_obj.most_common(25))
+        # # 3. 빈도 계산
+        # counts_obj = Counter(final_words)
+        # word_counts = dict(counts_obj.most_common(25))
+
+        import json
+        with open("word_counts.json", "w", encoding="utf-8") as f:
+            json.dump(word_counts, f, ensure_ascii=False)
+
         sorted_words = list(word_counts.keys())
 
         # 2. 워드클라우드 색상 및 생성 설정
