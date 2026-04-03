@@ -5,7 +5,9 @@ from wordcloud import WordCloud
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
+from konlpy.tag import Okt
 from config import BRAND_COLORS
+from collections import Counter
 
 class SkinVisualizer:
     def __init__(self, df):
@@ -702,38 +704,54 @@ class SkinVisualizer:
     def plot_market_expansion(self):
         st.markdown(f"<h5 style='font-weight:600; margin-bottom:6px;'>📊 2. 구독 카테고리별 점유율</h5>", unsafe_allow_html=True)
         if self.service_cols:
-            counts = self.df[self.service_cols].sum().sort_values(ascending=False)
-            counts.index = [idx.replace('service_current_', '').upper() for idx in counts.index]
-            
-            plot_df = pd.DataFrame({'카테고리': counts.index, '구독자 수': counts.values})
-            
-            if not plot_df.empty:
-                plot_df['카테고리'] = plot_df['카테고리'].astype(str)
+            category_map = {
+                "service_current_ott": "OTT",
+                "service_current_shopping": "쇼핑/멤버십",
+                "service_current_food": "장보기/식음료/주류",
+                "service_current_edu": "도서/교육",
+                "service_current_cleaning": "세탁/청소",
+                "service_current_pack": "짐 보관",
+                "service_current_media": "미디어",
+                "service_current_aisw": "AI/소프트웨어",
+                "service_current_game": "게임",
+                "service_current_etc": "기타"
+            }
 
-                # 1. 막대 그래프 생성
-                fig = px.bar(plot_df, 
-                             x='카테고리', 
-                             y='구독자 수', 
-                             text='구독자 수',
-                             color_discrete_sequence=[BRAND_COLORS.MAIN_MINT],
-                             title="카테고리별 실제 구독자 현황",
-                             labels={'카테고리': '서비스 카테고리', '구독자 수': '응답 인원(명)'})
+            counts_series = self.df[self.service_cols].sum().sort_values(ascending=False)
+            plot_df = pd.DataFrame({
+                '컬럼명': counts_series.index,
+                '구독자 수': counts_series.values
+            })
+            
+            # 컬럼명을 한글 카테고리명으로 치환
+            plot_df['카테고리'] = plot_df['컬럼명'].map(category_map).fillna(plot_df['컬럼명'])
+
+            if not plot_df.empty:
+                # 3. 막대 그래프 생성 (이미 한글로 바뀐 '카테고리' 컬럼 사용)
+                fig = px.bar(
+                    plot_df, 
+                    x='카테고리', 
+                    y='구독자 수', 
+                    text='구독자 수',
+                    color_discrete_sequence=[BRAND_COLORS.MAIN_MINT],
+                    labels={'카테고리': '서비스 카테고리', '구독자 수': '응답 인원(명)'}
+                )
                 
-                # 2. 텍스트 포맷 및 위치 (잘림 방지를 위해 clip=False 설정)
+                # 4. 텍스트 포맷 및 위치 설정
                 fig.update_traces(
                     texttemplate='%{text}명', 
                     textposition='outside',
-                    cliponaxis=False, # 글자가 차트 영역 밖으로 나가도 잘리지 않게 설정
+                    cliponaxis=False, 
                     width=0.6,
                 )
                 
-                # 3. 레이아웃 최적화 (여백 및 다크모드 대응)
+                # 5. 레이아웃 최적화
                 fig.update_layout(
                     paper_bgcolor='rgba(0,0,0,0)',
                     plot_bgcolor='rgba(0,0,0,0)',
                     template='plotly_white',
                     
-                    # 차트 내부 타이틀은 지우고 섹션 타이틀에 집중 (요청 유지)
+                    # 차트 내부 타이틀 복구
                     title={
                         'text': "<b>카테고리별 실제 구독자 현황</b>",
                         'font': {'size': 16, 'color': BRAND_COLORS.SUB_TEXT},
@@ -742,26 +760,26 @@ class SkinVisualizer:
                         'pad': {'t': 10}
                     },
                     
-                    # [수정] 마진 확보: 상단(t)과 하단(b)을 늘려 글자 잘림과 인사이트 간격 해결
-                    margin=dict(t=60, b=60, l=50, r=20),
-                    
+                    # 마진 확보
+                    margin=dict(t=40, b=60, l=50, r=20),
                     showlegend=False,
+                    
                     xaxis=dict(
-                        # [복구] X축 타이틀
                         title=dict(text="서비스 카테고리", font=dict(size=12)),
                         gridcolor='rgba(128, 128, 128, 0.1)',
-                        zeroline=False
+                        zeroline=False,
+                        tickangle=0
                     ),
                     yaxis=dict(
                         title=dict(text="응답 인원(명)", font=dict(size=12)),
                         tickformat="d", 
-                        range=[0, plot_df['구독자 수'].max() * 1.4], # 상단 여백 충분히
+                        range=[0, plot_df['구독자 수'].max() * 1.4], # 상단 여백
                         gridcolor='rgba(128, 128, 128, 0.1)',
                         zeroline=False
                     ),
                     coloraxis_showscale=False
                 )
-                
+
                 # 차트 출력
                 st.plotly_chart(fig, use_container_width=True, theme=None)
                 
@@ -787,83 +805,185 @@ class SkinVisualizer:
         for _ in range(4): st.write("")
 
     def plot_subjective_wordcloud(self):
-        """Part 4: 주관식 응답 워드클라우드 (안정적인 오리지널 버전)"""
-        st.markdown("<br><br>", unsafe_allow_html=True)
+        """Part 4: 주관식 응답 워드클라우드"""
         st.markdown(f"<h5 style='font-weight:600; margin-bottom:6px;'>📝 앱 서비스에 바라는 점</h5>", unsafe_allow_html=True)
 
         # 1. 데이터 추출 및 단어 빈도수 계산
         raw_texts = self.df['usage_expect'].dropna().astype(str).tolist()
         words = []
-        # '생각나지', '않음' 등 불용어 강화
-        stop_words = ['수', '내', '등', '것', '및', '위해', '통해', '대한', '있는', '알', '함', '앱', '어플', '안남', 
-                    '없음', '딱히', '생각', '않음', '생각나지', '않음', '생각이', '모르겠음', '같은거', '말고', '없습니다']
-        
-        for text in raw_texts:
-            # 특수문자 제거 및 단어 분리
-            cleaned = "".join([c if c.isalnum() or c.isspace() else " " for c in text])
-            for word in cleaned.split():
-                if len(word) > 1 and word not in stop_words:
-                    words.append(word)
-        
-        from collections import Counter
+
+        # [정규화 맵핑] 워드클라우드에서 한 덩어리로 보일 핵심 키워드들
+        normalization_map = {
+            "리마인더": ["리마인더"],
+            "결제 관리": ["결제일 알림", "결제일 정보", "결제 내역", "결제일 관리", "결제일과 금액", "결제 목록", "결제내역 불러오기", "갱신일 직전"],
+            "할인 혜택": ["할인받는법", "할인 정보", "할인 팁", "할인 혜택", "할인가"],
+            "구독 서비스 비교": ["OTT 비교", "구독 비교", "콘텐츠 비교", "서비스들 비교", "서비스 비교", "다양한 구독 소개", "다른 구독 정보"],
+            "콘텐츠 정보/목록": ["OTT 컨텐츠 목록", "콘텐츠 어디에 있는지"],
+            "구독 맞춤 추천": ["구독 추천", "맞춤추천", "서비스 추천", "카테고리별 추천", "관리 추천"]
+        }
+
+        try:
+            from konlpy.tag import Okt
+            okt = Okt()
+            
+            stop_words = ['수', '내', '등', '것', '및', '위해', '통해', '대한', '있는', '알', '함', '앱', '어플', 
+                        '없음', '딱히', '생각', '않음', '생각나지', '모르겠음', '좋겠어요', '진짜', '너무', 
+                        '특별히', '원하는', '기능', '서비스', '보고', '보고서', '같음', '안남', '안나요', '안나']
+
+            for text in raw_texts:
+                # [전처리] 덩어리 단어(Normalization) 먼저 확인
+                is_normalized = False
+                for rep, targets in normalization_map.items():
+                    if any(target in text for target in targets):
+                        words.append(rep) 
+                        is_normalized = True
+                        break # 덩어리로 잡혔으면 이 문장은 여기서 끝 (중복 방지)
+                
+                # 덩어리에 안 걸린 문장들만 형태소 분석기(Okt) 돌리기
+                if not is_normalized:
+                    nouns = okt.nouns(text)
+                    for noun in nouns:
+                        # '구독', '서비스', '관리' 등 너무 포괄적인 단어도 여기서 필터링
+                        extra_stop_words = ['구독', '서비스', '관리', '기능', '어플', '앱']
+                        if len(noun) > 1 and noun not in stop_words and noun not in extra_stop_words:
+                            words.append(noun)
+
+        except Exception as e:
+            for text in raw_texts:
+                for word in text.split():
+                    if len(word) > 1: words.append(word)
+
         word_counts = dict(Counter(words).most_common(30))
 
-        if not word_counts:
-            st.info("분석할 주관식 응답 데이터가 부족합니다.")
-            return
+        # 2. 워드클라우드 색상 및 생성 설정
+        sorted_words = [w for w, c in word_counts.items()]
 
-        # 2. 워드클라우드 생성 (배경 투명화 및 컬러셋 조정)
-        # mode='RGBA'와 background_color=None을 함께 써야 투명 배경이 적용됩니다.
+        def color_func(word, font_size, position, orientation, random_state=None, **kwargs):
+            try:
+                rank = sorted_words.index(word)
+                
+                # 1. 메인 주인공 (1위): 메인 민트 (#13d6a2)
+                if rank == 0:
+                    return BRAND_COLORS.MAIN_MINT
+                
+                # 2. 서브 포인트 (2~5위): 2가지 색상 교차 배정
+                elif rank < 5:
+                    # 부드러운 오렌지(#ffd8b1)와 스카이 블루(#94b8e2) 교차
+                    return "#ffc8cb" if rank % 2 == 0 else "#94b8e2"
+                
+                # 3. 중간 위계 (6~12위): 짙은 그레이 (#64748b)
+                elif rank < 12:
+                    return BRAND_COLORS.LIGHT_SUBTEXT # 또는 "#64748b"
+                
+                # 4. 배경 위계 (13위~): 연한 그레이 (#cbd5e1)
+                else:
+                    return "#cbd5e1"
+            except:
+                return "#94A3B8"
+        
         wc = WordCloud(
             font_path='assets/Pretendard-SemiBold.otf', 
             background_color=None, 
             mode='RGBA',
             width=500,
             height=300,
-            colormap='Set2', # 다크/라이트 양방향 대응 가능한 팔레트
+            scale=3,
             max_words=25,
-            repeat=False,
+            color_func=color_func,
+            margin=15,             # 단어 사이 간격 넓힘
+            prefer_horizontal=1.0  # 가독성을 위해 가로 배치 고정
         ).generate_from_frequencies(word_counts)
 
-        # 3. VOC 카테고리화 로직 (키워드 기반 분류)
+        # 3. VOC 카테고리화 (원문 보존 로직)
         categories = {
-            "🚫 해지/탈퇴 장벽": ["해지", "취소", "탈퇴", "숨겨", "번거", "어려움"],
-            "🔔 결제/지출 알림": ["알림", "결제", "날짜", "주기", "미리", "금액", "지출"],
-            "🎨 UI/UX 편의성": ["복잡", "한눈에", "찾기", "메뉴", "화면", "조작", "직관"]
+            "🗓️ 결제 및 스케줄 관리": ["결제일", "일정", "스케줄", "내역", "가계부", "리마인더"],
+            "💰 할인 팁 및 제휴 정보": ["할인", "제휴", "행사", "블랙프라이데이", "학생"],
+            "🔍 서비스 비교 및 추천": ["비교", "추천", "맞춤", "콘텐츠", "어디"]
         }
         
         categorized_voc = {k: [] for k in categories.keys()}
-        for text in raw_texts:
-            for cat, keywords in categories.items():
-                if any(kw in text for kw in keywords) and len(categorized_voc[cat]) < 1:
-                    categorized_voc[cat].append(text)
-                    break
+        used_texts = set()
+
+        for cat, keywords in categories.items():
+            for text in raw_texts:
+                if cat == "💰 할인 팁 및 제휴 정보" and "구독 맞춤" in text:
+                    continue
+
+                if any(kw in text for kw in keywords):
+                    display_text = text.strip()
+                    display_text = display_text.replace(" 같은거", "").replace(" 같은 거", "")
+
+                    if "어도비 블랙프라이데이" in display_text:
+                        display_text = "블랙프라이데이 같은 정기적 행사 알림"
+
+                    for rep, targets in normalization_map.items():
+                        if any(target in text for target in targets):
+                            keep_raw = ["학생", "블랙프라이데이", "금액", "캘린더", "신규", "내려가는", "리마인더"]
+                            if any(k in display_text for k in keep_raw):
+                                display_text = display_text 
+                            elif len(display_text) < 10 or '?' in display_text:
+                                display_text = rep 
+                            break
+                    
+                    if display_text not in used_texts:
+                        if len(categorized_voc[cat]) < 4:
+                            categorized_voc[cat].append(display_text)
+                            used_texts.add(display_text)
 
         # --- 레이아웃 배치 ---
-        col1, col2 = st.columns([1, 1.1]) # 비율 조정으로 클라우드 비중 축소
+        col1, col2 = st.columns([1, 1.1])
         
         with col1:
-            # 워드클라우드 이미지 출력
-            st.image(wc.to_array(), use_container_width=True)
+            fig, ax = plt.subplots(figsize=(10, 6), dpi=150) 
+            ax.imshow(wc, interpolation='bilinear')
+            ax.axis('off')
+            
+            # 배경 투명하게 처리 (대시보드와 일체감)
+            fig.patch.set_facecolor('none')
+            ax.set_facecolor('none')
+            
+            # 스트림릿에 고해상도로 출력
+            st.pyplot(fig, use_container_width=True)
 
         with col2:
             st.markdown(f"""
-                <div style="background-color: rgba(20, 184, 166, 0.08); padding: 18px; border-radius: 12px; border-left: 5px solid {BRAND_COLORS.MAIN_MINT}; border: 1px solid rgba(20, 184, 166, 0.2);">
-                    <p style="font-size: 0.9rem; line-height: 1.6; margin: 0; color: #1e293b; font-weight: 500;">
+                <div style="background-color: rgba(20, 184, 166, 0.1); padding: 18px; border-radius: 12px; border-left: 5px solid {BRAND_COLORS.MAIN_MINT}; border: 1px solid rgba(20, 184, 166, 0.2);">
+                    <p style="font-size: 0.9rem; line-height: 1.6; margin: 0; font-weight: 500;">
                         <b style="color: {BRAND_COLORS.MAIN_MINT};">인사이트 요약</b><br>
-                        로데이터 분석 결과, 유저들은 <b>의도적으로 복잡한 해지 절차</b>와 <b>불친절한 UI</b>에 큰 피로감을 느끼고 있습니다. 투명한 정보 공개가 핵심입니다.
+                        데이터 분석 결과, 유저들은 <b>단순한 구독 목록 확인</b>을 넘어 <b>실질적인 금전적 혜택(할인 정보)</b>과 <b>콘텐츠 탐색 비용 감소(서비스 비교)</b>를 강력히 원하고 있습니다.
                     </p>
                 </div>
             """, unsafe_allow_html=True)
-            st.write("")
             
-            st.markdown(f"<p style='font-size: 0.85rem; color: #475569; font-weight: 700; margin-top: 15px; margin-bottom: 8px;'>💬 카테고리별 유저 목소리</p>", unsafe_allow_html=True)
-            # 카테고리별 답변 (배경 대비 텍스트 명도 강화)
+            st.markdown(f"<p style='font-size: 0.85rem; font-weight: 700; margin-top: 15px; margin-bottom: 8px;'>💬 카테고리별 유저 목소리</p>", unsafe_allow_html=True)
+            
             for cat, voc_list in categorized_voc.items():
                 if voc_list:
+                    voc_items_html = ""
+                    for v in voc_list:
+                        voc_items_html += f'<span style="display: inline-block; margin-right: 8px; margin-bottom: 4px;">"{v}"</span> '
+
                     st.markdown(f"""
-                        <div style="margin-bottom: 10px; background-color: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
-                            <span style="font-size: 0.78rem; color: #0f172a; font-weight: 800; background-color: #ccfbf1; padding: 2px 6px; border-radius: 4px;">{cat}</span>
-                            <p style="font-size: 0.85rem; color: #334155; margin: 8px 0 0 0; line-height: 1.5; font-weight: 500;">"{voc_list[0]}"</p>
+                        <div style="
+                            margin-bottom: 10px; 
+                            background-color: rgba(128, 128, 128, 0.05); 
+                            padding: 12px; 
+                            border-radius: 8px; 
+                            border: 1px solid rgba(0, 0, 0, 0.1);
+                        ">
+                            <div style="
+                                display: inline-block;
+                                font-size: 0.7rem; 
+                                color: {BRAND_COLORS.SUB_MINT}; 
+                                font-weight: 700; 
+                                background-color: rgba(20, 184, 166, 0.1); 
+                                padding: 2px 8px; 
+                                border-radius: 6px;
+                                margin-bottom: 10px;
+                                border: 1px solid rgba(20, 184, 166, 0.2);
+                            ">{cat}</div>
+                            <div style="font-size: 0.82rem; line-height: 1.5; font-weight: 500; color: inherit;">
+                                {voc_items_html}
+                            </div>
                         </div>
                     """, unsafe_allow_html=True)

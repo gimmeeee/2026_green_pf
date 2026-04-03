@@ -17,3 +17,4 @@ sentence-transformers
 google-generativeai
 streamlit-float
 wordcloud
+konlpy
