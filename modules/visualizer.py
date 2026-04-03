@@ -853,7 +853,17 @@ class SkinVisualizer:
                 for word in text.split():
                     if len(word) > 1: words.append(word)
 
-        word_counts = dict(Counter(words).most_common(30))
+        # 배포 서버에서도 100% 성공하는 방어 코드
+        word_counts = Counter(words)
+
+        # 여기서 한번 더 강제 삭제 (Okt가 어떻게 쪼갰든 상관없이 무조건 컷)
+        bad_words = ['생각나지', '않음', '생각', '모름', '기타', '생각나지 않음', '안남']
+        for bad_word in bad_words:
+            if bad_word in word_counts:
+                del word_counts[bad_word]
+
+        word_counts = dict(word_counts.most_common(30))
+        sorted_words = list(word_counts.keys())
 
         # 2. 워드클라우드 색상 및 생성 설정
         sorted_words = [w for w, c in word_counts.items()]
