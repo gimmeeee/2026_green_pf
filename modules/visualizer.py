@@ -708,27 +708,79 @@ class SkinVisualizer:
             plot_df = pd.DataFrame({'카테고리': counts.index, '구독자 수': counts.values})
             
             if not plot_df.empty:
-                # 1. 막대 그래프 생성 및 텍스트 표시
+                # 1. 막대 그래프 생성
                 fig = px.bar(plot_df, 
                              x='카테고리', 
                              y='구독자 수', 
-                             color='구독자 수',
-                             text='구독자 수', # 막대 위에 숫자 표시
+                             text='구독자 수',
+                             color_discrete_sequence=[BRAND_COLORS.MAIN_MINT],
                              title="카테고리별 실제 구독자 현황",
-                             labels={'카테고리': '서비스 카테고리', '구독자 수': '응답 인원(명)'}, 
-                             color_continuous_scale='Purples')
+                             labels={'카테고리': '서비스 카테고리', '구독자 수': '응답 인원(명)'})
                 
-                # 2. 텍스트 포맷 및 위치 조정
-                fig.update_traces(texttemplate='%{text}명', textposition='outside')
-                fig.update_layout(yaxis=dict(tickformat="d", range=[0, plot_df['구독자 수'].max() * 1.2]), 
-                                  showlegend=False, plot_bgcolor='white')
+                # 2. 텍스트 포맷 및 위치 (잘림 방지를 위해 clip=False 설정)
+                fig.update_traces(
+                    texttemplate='%{text}명', 
+                    textposition='outside',
+                    cliponaxis=False, # 글자가 차트 영역 밖으로 나가도 잘리지 않게 설정
+                    width=0.6,
+                )
                 
-                st.plotly_chart(fig, use_container_width=True)
+                # 3. 레이아웃 최적화 (여백 및 다크모드 대응)
+                fig.update_layout(
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    
+                    # 차트 내부 타이틀은 지우고 섹션 타이틀에 집중 (요청 유지)
+                    title={
+                        'text': "<b>카테고리별 실제 구독자 현황</b>",
+                        'font': {'size': 16, 'color': BRAND_COLORS.SUB_TEXT},
+                        'x': 0,
+                        'xanchor': 'left',
+                        'pad': {'t': 10}
+                    },
+                    
+                    # [수정] 마진 확보: 상단(t)과 하단(b)을 늘려 글자 잘림과 인사이트 간격 해결
+                    margin=dict(t=60, b=60, l=50, r=20),
+                    
+                    showlegend=False,
+                    xaxis=dict(
+                        # [복구] X축 타이틀
+                        title=dict(text="서비스 카테고리", font=dict(size=12)),
+                        gridcolor='rgba(128, 128, 128, 0.1)',
+                        zeroline=False
+                    ),
+                    yaxis=dict(
+                        title=dict(text="응답 인원(명)", font=dict(size=12)),
+                        tickformat="d", 
+                        range=[0, plot_df['구독자 수'].max() * 1.4], # 상단 여백 충분히
+                        gridcolor='rgba(128, 128, 128, 0.1)',
+                        zeroline=False
+                    ),
+                    coloraxis_showscale=False
+                )
                 
-                # 3. 비즈니스 확장 인사이트 (점유율 2위 강조)
+                # 차트 출력
+                st.plotly_chart(fig, use_container_width=True, theme=None)
+                
+                # 4. 인사이트 메시지 (차트와의 간격을 위해 상단 margin 추가)
                 if len(plot_df) > 1:
                     second_cat = plot_df.iloc[1]['카테고리']
-                    st.success(f"🚀 **확장 전략:** 초기 서비스는 OTT에 이어 점유율 2위인 **'{second_cat}'** 카테고리를 함께 공략해야 합니다.")
+                    st.markdown(f"""
+                        <div style="
+                            background-color: rgba(20, 184, 166, 0.05); 
+                            padding: 22px; 
+                            border-radius: 12px; 
+                            border-left: 5px solid {BRAND_COLORS.MAIN_MINT}; 
+                            border: 1px solid rgba(20, 184, 166, 0.1);
+                            margin-top: 15px;  /* 차트와의 간격 확보 */
+                            margin-bottom: 20px;
+                        ">
+                            <p style="margin: 0; font-size: 0.95rem; line-height: 1.7;">
+                                🚀 <b>시장 확장 전략:</b> 초기 서비스는 OTT에 이어 점유율 2위인 <b>'{second_cat}'</b> 카테고리를 함께 공략하여 유저 락인(Lock-in) 효과를 극대화해야 합니다.
+                            </p>
+                        </div>
+                    """, unsafe_allow_html=True)
+
         for _ in range(4): st.write("")
 
     def plot_subjective_wordcloud(self):
