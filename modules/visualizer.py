@@ -808,6 +808,8 @@ class SkinVisualizer:
         """Part 4: 주관식 응답 워드클라우드"""
         st.markdown(f"<h5 style='font-weight:600; margin-bottom:6px;'>📝 앱 서비스에 바라는 점</h5>", unsafe_allow_html=True)
 
+        from collections import Counter
+
         # 1. 데이터 추출 및 단어 빈도수 계산
         raw_texts = self.df['usage_expect'].dropna().astype(str).tolist()
         words = []
@@ -822,48 +824,48 @@ class SkinVisualizer:
             "구독 맞춤 추천": ["구독 추천", "맞춤추천", "서비스 추천", "카테고리별 추천", "관리 추천"]
         }
 
+        # 1. 강력한 통합 블랙리스트 (보이는 족족 여기에 추가하세요)
+        final_blacklist = [
+            '수', '내', '등', '것', '및', '위해', '통해', '대한', '있는', '알', '함', '앱', '어플', 
+            '없음', '딱히', '생각', '않음', '생각나지', '모르겠음', '좋겠어요', '진짜', '너무', 
+            '특별히', '원하는', '기능', '서비스', '보고', '보고서', '같음', '안남', '안나요', '안나',
+            '생각나지 않음', '기타', '없습니다', '생각이', '맞춤', '같은거', '보기', '정말', '많이'
+        ]
+
         try:
             from konlpy.tag import Okt
             okt = Okt()
             
-            stop_words = ['수', '내', '등', '것', '및', '위해', '통해', '대한', '있는', '알', '함', '앱', '어플', 
-                        '없음', '딱히', '생각', '않음', '생각나지', '모르겠음', '좋겠어요', '진짜', '너무', 
-                        '특별히', '원하는', '기능', '서비스', '보고', '보고서', '같음', '안남', '안나요', '안나']
-
             for text in raw_texts:
-                # [전처리] 덩어리 단어(Normalization) 먼저 확인
-                is_normalized = False
+                matched_rep = None
+                # 정규화 먼저 체크
                 for rep, targets in normalization_map.items():
                     if any(target in text for target in targets):
-                        words.append(rep) 
-                        is_normalized = True
-                        break # 덩어리로 잡혔으면 이 문장은 여기서 끝 (중복 방지)
+                        matched_rep = rep
+                        break
                 
-                # 덩어리에 안 걸린 문장들만 형태소 분석기(Okt) 돌리기
-                if not is_normalized:
+                if matched_rep:
+                    words.append(matched_rep)
+                else:
+                    # 정규화에 안 걸린 경우만 형태소 분석
                     nouns = okt.nouns(text)
-                    for noun in nouns:
-                        # '구독', '서비스', '관리' 등 너무 포괄적인 단어도 여기서 필터링
-                        extra_stop_words = ['구독', '서비스', '관리', '기능', '어플', '앱']
-                        if len(noun) > 1 and noun not in stop_words and noun not in extra_stop_words:
-                            words.append(noun)
-
-        except Exception as e:
+                    words.extend(nouns)
+        except:
             for text in raw_texts:
-                for word in text.split():
-                    if len(word) > 1: words.append(word)
+                words.extend(text.split())
 
-        # 배포 서버에서도 100% 성공하는 방어 코드
-        word_counts = Counter(words)
+        # 2. [필터링 핵심] 리스트 단계에서 전수 조사
+        # - 블랙리스트에 없어야 함
+        # - 2글자 이상이어야 함
+        # - normalization_map의 '키'값들은 무조건 통과 (이미 위에서 넣었으므로)
+        final_words = [
+            w for w in words 
+            if (w in normalization_map.keys()) or (w not in final_blacklist and len(w) > 1)
+        ]
 
-        # 여기서 한번 더 강제 삭제 (Okt가 어떻게 쪼갰든 상관없이 무조건 컷)
-        blacklist = stop_words + ['생각나지 않음', '모르겠음', '기타', '안남', '안나요']
-
-        for bad_word in blacklist:
-            if bad_word in word_counts:
-                del word_counts[bad_word]
-
-        word_counts = dict(word_counts.most_common(30))
+        # 3. 빈도 계산
+        counts_obj = Counter(final_words)
+        word_counts = dict(counts_obj.most_common(25))
         sorted_words = list(word_counts.keys())
 
         # 2. 워드클라우드 색상 및 생성 설정
