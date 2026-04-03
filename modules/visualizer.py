@@ -708,6 +708,8 @@ class SkinVisualizer:
             plot_df = pd.DataFrame({'카테고리': counts.index, '구독자 수': counts.values})
             
             if not plot_df.empty:
+                plot_df['카테고리'] = plot_df['카테고리'].astype(str)
+
                 # 1. 막대 그래프 생성
                 fig = px.bar(plot_df, 
                              x='카테고리', 
@@ -729,6 +731,7 @@ class SkinVisualizer:
                 fig.update_layout(
                     paper_bgcolor='rgba(0,0,0,0)',
                     plot_bgcolor='rgba(0,0,0,0)',
+                    template='plotly_white',
                     
                     # 차트 내부 타이틀은 지우고 섹션 타이틀에 집중 (요청 유지)
                     title={
