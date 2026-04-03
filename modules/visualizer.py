@@ -270,7 +270,7 @@ class SkinVisualizer:
 
                 fig = px.bar(counts, orientation='h', template=None,
                              color=counts.values, 
-                             color_continuous_scale=["#FFF6F5", "#FACEC8", "#F1A197"]) # 연함 -> 진함
+                             color_continuous_scale=["#FFF6F5", "#F1A197"]) # 연함 -> 진함
                 
                 fig.update_traces(
                     text=counts.values, 
@@ -306,7 +306,7 @@ class SkinVisualizer:
 
                 fig_p = px.bar(counts_p, orientation='h', template=None,
                                color=counts_p.values,
-                               color_continuous_scale=["#ECFFF9", "#ABE6D6", "#0BB085"])
+                               color_continuous_scale=["#ECFFF9", "#0BB085"])
         
                 fig_p.update_traces(
                     text=counts_p.values, 
@@ -451,7 +451,7 @@ class SkinVisualizer:
             fig_left.add_trace(go.Bar(
                 x=l_stats['user_seg'], y=l_stats['user_count'],
                 name='해지 경험자 (명)',
-                marker_color=['#F1AC90', "#c5cbd3", '#FF6D74'],
+                marker_color=['#F1AC90', "#dce0e6", '#FF6D74'],
                 text=l_stats['user_count'], 
                 textposition='inside', insidetextanchor='start',
                 yaxis='y1'
@@ -506,7 +506,7 @@ class SkinVisualizer:
             fig_right = px.scatter(
                 self.df, x='ott_time_total', y='cost_per_hour',
                 color='user_seg', size='total_ott_fee',
-                color_discrete_map={'Light': "#F1AC90", 'Middle': '#c5cbd3', 'Heavy': "#FF6D74"},
+                color_discrete_map={'Light': "#F1AC90", 'Middle': '#dce0e6', 'Heavy': "#FF6D74"},
                 category_orders={"user_seg": ["Light", "Middle", "Heavy"]},
                 labels={'ott_time_total': '주간 시청 시간 (h)', 'cost_per_hour': '시간당 비용 (원/h)', 'user_seg': '유저 쿼터'}
             )
@@ -599,65 +599,105 @@ class SkinVisualizer:
         for _ in range(4): st.write("")
 
     def plot_pain_correlation(self):
-        st.markdown(f"<h5 style='font-weight:600; margin-bottom:6px;'>📊 1. 구독 비용 및 개수와 관리 피로도의 관계</h5>", unsafe_allow_html=True)
+        st.markdown(f"<h5 style='font-weight:600; margin-bottom:6px;'>📊 1. 구독 개수 및 비용과 관리 피로도의 관계</h5>", unsafe_allow_html=True)
         
-        # 1. 데이터 준비 및 지터(Jitter) 최적화
         plot_df = self.df.copy()
-        # Y축(서비스 개수)에도 약간의 지터만 주어 겹침 방지
+        # 범례 라벨을 직관적으로 변경 (0, 1 -> 관리 수월, 관리 어려움)
+        plot_df['관리 상태'] = plot_df['pain_num'].map({1: '어려움 경험자', 0: '어려움 미경험자'}).astype(str)
         plot_df['service_count_jitter'] = plot_df['service_count'] + np.random.uniform(-0.1, 0.1, size=len(plot_df))
-        
-        # 2. 산점도 생성: X축(비용), Y축(개수), 색상(어려움 여부)
+
+        # 산점도 생성
         fig = px.scatter(plot_df, 
                          x='fee_service_total', 
                          y='service_count_jitter',
-                         color='pain_num',
+                         color='관리 상태', # 변경된 라벨 적용
                          hover_data={
+                             '관리 상태': True,
                              'service_count_jitter': False, 
                              'service_count': True,
                              'fee_service_total': ':,.0f',
                              'job': True
                          },
                          labels={
-                             'service_count_jitter': '구독 서비스 개수', 
                              'service_count': '구독 서비스 개수',
-                             'pain_num': '관리 어려움 여부',
                              'fee_service_total': '월 총 구독료(원)'
                          },
-                         title="비용과 개수가 늘어날수록 관리가 힘들어지는가?",
-                         # 빨간색(1: 힘듦)과 회색(0: 괜찮음)으로 대비
-                         color_continuous_scale=['#cbd5e1', '#ef4444'])
+                         # [수정] 색상 매핑: 회색(#cbd5e1)과 요청하신 MAIN_MINT(#14B8A6)
+                         color_discrete_map={
+                             '어려움 경험자': BRAND_COLORS.MAIN_MINT, 
+                             '어려움 미경험자': '#cbd5e1'
+                         })
 
-        # 3. 차트 레이아웃 최적화 (축 뒤집기 및 영역 강조)
-        fig.update_layout(
-            xaxis=dict(title="월 총 지출 비용 (원)", gridcolor='rgba(200, 200, 200, 0.2)'),
-            yaxis=dict(title="구독 중인 서비스 개수 (개)", gridcolor='rgba(200, 200, 200, 0.2)', dtick=1),
-            plot_bgcolor='white',
-            showlegend=False,
-            coloraxis_showscale=False # 색상 바 제거 (직관성을 위해)
+        fig.update_traces(
+            # 마커 디자인 최적화
+            marker=dict(size=14, opacity=0.85, line=dict(width=1, color='rgba(255, 255, 255, 0.2)')),
         )
 
-        # 관리 피로도가 높을 것으로 예상되는 '우상단' 영역에 가이드 박스 추가
+        fig.update_layout(
+            coloraxis_showscale=False,
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            
+            title={
+                'text': "<b>구독 개수와 비용이 늘어날수록 관리가 힘들어지는가?</b>",
+                'font': {'size': 16, 'color': BRAND_COLORS.SUB_TEXT},
+                'x': 0, 'xanchor': 'left'
+            },
+
+            margin=dict(t=10, b=40, l=40, r=20),
+            
+            # [수정] 범례(Legend) 활성화 및 위치 조정
+            showlegend=True,
+            legend=dict(
+                title_text="",
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1,
+                font=dict(color=BRAND_COLORS.SUB_TEXT)
+            ),
+            
+            xaxis=dict(title="월 총 지출 비용 (원)", gridcolor='rgba(128, 128, 128, 0.1)', zeroline=False),
+            yaxis=dict(title="구독 중인 서비스 개수 (개)", gridcolor='rgba(128, 128, 128, 0.1)', dtick=1, zeroline=False),
+        )
+
+        # 우상단 강조 영역 컬러도 MINT 계열로 연하게 변경
         fig.add_vrect(x0=plot_df['fee_service_total'].median(), x1=plot_df['fee_service_total'].max()*1.1,
                       y0=plot_df['service_count'].median(), y1=plot_df['service_count'].max()+1,
-                      fillcolor="orange", opacity=0.05, layer="below", line_width=0)
+                      fillcolor=BRAND_COLORS.MAIN_MINT, opacity=0.03, layer="below", line_width=0)
         
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, theme=None)
+        st.write("")
         
-        # 4. 분석 메시지 (비용 중심 분석 추가)
+        # 4. 분석 메시지 (인사이트 섹션)
         valid_df = self.df[['service_count', 'fee_service_total', 'pain_num']].dropna()
         if len(valid_df) > 1:
             pain_group = valid_df[valid_df['pain_num'] == 1]
-            normal_group = valid_df[valid_df['pain_num'] == 0]
-            
             avg_fee_pain = pain_group['fee_service_total'].mean()
             avg_count_pain = pain_group['service_count'].mean()
             
-            st.error(f"""
-            📈 **심층 가설 검증:**
-            - **고비용 유저의 비명:** 관리가 힘들다고 답한 유저들은 평균 **{avg_fee_pain:,.0f}원**을 지출하며, 평균 **{avg_count_pain:.1f}개**의 서비스를 이용 중입니다.
-            - **상관성:** 지출 비용이 커질수록 붉은색(관리 어려움) 점들이 우측 상단으로 밀집되는 경향이 뚜렷합니다.
-            - **결론:** 단순 개수보다 **'금액적 부담'이 '관리의 필요성'을 느끼게 하는 더 강력한 트리거**임을 확인할 수 있습니다.
-            """)
+            # [디자인 변경]
+            insight_html = f"""
+            <div style="
+                background-color: rgba(20, 184, 166, 0.05); 
+                padding: 20px; 
+                border-radius: 12px; 
+                border-left: 5px solid {BRAND_COLORS.MAIN_MINT}; 
+                margin-top: 20px;
+                border: 1px solid rgba(20, 184, 166, 0.1);
+            ">
+                <p style="color: {BRAND_COLORS.MAIN_MINT}; font-weight: bold; margin: 0 0 12px 0; font-size: 1rem;">🎯 심층 가설 검증 결과</p>
+                <ul style="margin: 0; padding-left: 20px; font-size: 0.92rem; line-height: 1.7;">
+                    <li style="margin-bottom: 8px;"><b>고관여 유저의 페인포인트:</b> 관리가 어렵다고 응답한 유저들은 평균 <b>{avg_fee_pain:,.0f}원</b>을 지출하며, 약 <b>{avg_count_pain:.1f}개</b>의 서비스를 이용 중입니다.</li>
+                    <li style="margin-bottom: 8px;"><b>상관성 분석:</b> 지출 비용이 커질수록 민트색(관리 어려움군) 점들이 우측 상단으로 밀집되는 경향이 뚜렷합니다.</li>
+                    <li><b>결론:</b> 단순 구독 개수보다 <b>'총 지출 금액'</b>이 유저가 관리의 필요성을 강하게 느끼게 하는 핵심 트리거임을 확인했습니다.</li>
+                </ul>
+            </div>
+            """
+            st.markdown(insight_html, unsafe_allow_html=True)
+
+        for _ in range(4): st.write("")
 
     def plot_market_expansion(self):
         st.markdown(f"<h5 style='font-weight:600; margin-bottom:6px;'>📊 2. 구독 카테고리별 점유율</h5>", unsafe_allow_html=True)
@@ -689,6 +729,7 @@ class SkinVisualizer:
                 if len(plot_df) > 1:
                     second_cat = plot_df.iloc[1]['카테고리']
                     st.success(f"🚀 **확장 전략:** 초기 서비스는 OTT에 이어 점유율 2위인 **'{second_cat}'** 카테고리를 함께 공략해야 합니다.")
+        for _ in range(4): st.write("")
 
     def plot_subjective_wordcloud(self):
         """Part 4: 주관식 응답 워드클라우드 (안정적인 오리지널 버전)"""
@@ -698,7 +739,7 @@ class SkinVisualizer:
         # 1. 데이터 추출 및 단어 빈도수 계산
         text_data = self.df['usage_expect'].dropna().astype(str).tolist()
         words = []
-        stop_words = ['수', '내', '등', '것', '및', '위해', '통해', '대한', '있는', '알', '함', '앱', '어플', '구독', '서비스']
+        stop_words = ['수', '내', '등', '것', '및', '위해', '통해', '대한', '있는', '알', '함', '앱', '어플', '없음', '딱히', '생각', '않음']
         
         for text in text_data:
             cleaned = "".join([c if c.isalnum() or c.isspace() else " " for c in text])
@@ -716,14 +757,16 @@ class SkinVisualizer:
         # 2. 워드클라우드 생성 (디자인 커스텀)
         # font_path는 윈도우 기본 폰트인 맑은 고딕을 사용합니다.
         wc = WordCloud(
-            font_path='malgun.ttf', 
-            background_color='white', # 다크모드에서 시인성을 위해 흰색 배경 또는 투명 설정
+            font_path='assets/Pretendard-SemiBold.otf', 
+            background_color=None, # 다크모드에서 시인성을 위해 흰색 배경 또는 투명 설정
             mode='RGB',
             width=800,
             height=450,
             colormap='viridis', # 세련된 컬러셋
             max_words=40
         ).generate_from_frequencies(word_counts)
+
+        st.image(wc.to_array(), use_container_width=True)
 
         # --- 레이아웃 배치 ---
         col1, col2 = st.columns([1.5, 1])

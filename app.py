@@ -73,6 +73,7 @@ def render_visual_dashboard(df):
     st.divider()
     viz.plot_pain_correlation()
     viz.plot_market_expansion()
+    st.divider()
 
     # Part 4: Wordcloud
     st.header("Part4.")
