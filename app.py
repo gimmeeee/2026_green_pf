@@ -76,7 +76,7 @@ def render_visual_dashboard(df):
     st.divider()
 
     # Part 4: Wordcloud
-    st.header("Part4.")
+    st.header("Part 4. 유저 니즈 심층 분석")
     st.divider()
     viz.plot_subjective_wordcloud()
 

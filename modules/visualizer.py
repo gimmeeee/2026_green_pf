@@ -789,63 +789,81 @@ class SkinVisualizer:
     def plot_subjective_wordcloud(self):
         """Part 4: 주관식 응답 워드클라우드 (안정적인 오리지널 버전)"""
         st.markdown("<br><br>", unsafe_allow_html=True)
-        st.markdown(f"<h5 style='font-weight:600; margin-bottom:15px;'>📝 Part 4. 유저 니즈 심층 분석 (VOC)</h5>", unsafe_allow_html=True)
+        st.markdown(f"<h5 style='font-weight:600; margin-bottom:6px;'>📝 앱 서비스에 바라는 점</h5>", unsafe_allow_html=True)
 
         # 1. 데이터 추출 및 단어 빈도수 계산
-        text_data = self.df['usage_expect'].dropna().astype(str).tolist()
+        raw_texts = self.df['usage_expect'].dropna().astype(str).tolist()
         words = []
-        stop_words = ['수', '내', '등', '것', '및', '위해', '통해', '대한', '있는', '알', '함', '앱', '어플', '없음', '딱히', '생각', '않음']
+        # '생각나지', '않음' 등 불용어 강화
+        stop_words = ['수', '내', '등', '것', '및', '위해', '통해', '대한', '있는', '알', '함', '앱', '어플', '안남', 
+                    '없음', '딱히', '생각', '않음', '생각나지', '않음', '생각이', '모르겠음', '같은거', '말고', '없습니다']
         
-        for text in text_data:
+        for text in raw_texts:
+            # 특수문자 제거 및 단어 분리
             cleaned = "".join([c if c.isalnum() or c.isspace() else " " for c in text])
             for word in cleaned.split():
                 if len(word) > 1 and word not in stop_words:
                     words.append(word)
         
         from collections import Counter
-        word_counts = dict(Counter(words).most_common(40))
+        word_counts = dict(Counter(words).most_common(30))
 
         if not word_counts:
             st.info("분석할 주관식 응답 데이터가 부족합니다.")
             return
 
-        # 2. 워드클라우드 생성 (디자인 커스텀)
-        # font_path는 윈도우 기본 폰트인 맑은 고딕을 사용합니다.
+        # 2. 워드클라우드 생성 (배경 투명화 및 컬러셋 조정)
+        # mode='RGBA'와 background_color=None을 함께 써야 투명 배경이 적용됩니다.
         wc = WordCloud(
             font_path='assets/Pretendard-SemiBold.otf', 
-            background_color=None, # 다크모드에서 시인성을 위해 흰색 배경 또는 투명 설정
-            mode='RGB',
-            width=800,
-            height=450,
-            colormap='viridis', # 세련된 컬러셋
-            max_words=40
+            background_color=None, 
+            mode='RGBA',
+            width=500,
+            height=300,
+            colormap='Set2', # 다크/라이트 양방향 대응 가능한 팔레트
+            max_words=25,
+            repeat=False,
         ).generate_from_frequencies(word_counts)
 
-        st.image(wc.to_array(), use_container_width=True)
+        # 3. VOC 카테고리화 로직 (키워드 기반 분류)
+        categories = {
+            "🚫 해지/탈퇴 장벽": ["해지", "취소", "탈퇴", "숨겨", "번거", "어려움"],
+            "🔔 결제/지출 알림": ["알림", "결제", "날짜", "주기", "미리", "금액", "지출"],
+            "🎨 UI/UX 편의성": ["복잡", "한눈에", "찾기", "메뉴", "화면", "조작", "직관"]
+        }
+        
+        categorized_voc = {k: [] for k in categories.keys()}
+        for text in raw_texts:
+            for cat, keywords in categories.items():
+                if any(kw in text for kw in keywords) and len(categorized_voc[cat]) < 1:
+                    categorized_voc[cat].append(text)
+                    break
 
         # --- 레이아웃 배치 ---
-        col1, col2 = st.columns([1.5, 1])
+        col1, col2 = st.columns([1, 1.1]) # 비율 조정으로 클라우드 비중 축소
         
         with col1:
-            st.markdown('<div style="background-color: white; padding: 10px; border-radius: 10px;">', unsafe_allow_html=True)
+            # 워드클라우드 이미지 출력
             st.image(wc.to_array(), use_container_width=True)
-            st.markdown('</div>', unsafe_allow_html=True)
 
         with col2:
-            st.markdown("""
-                <div style="background-color: rgba(255,255,255,0.05); padding: 20px; border-radius: 12px; border-left: 4px solid #14B8A6;">
-                    <p style="font-size: 0.95rem; line-height: 1.7; margin: 0;">
-                        <b>주요 키워드 분석</b><br>
-                        유저들은 실질적인 <b>관리 효율성</b>과 <b>결제 알림</b>에 대해 가장 큰 기대를 보이고 있습니다.
+            st.markdown(f"""
+                <div style="background-color: rgba(20, 184, 166, 0.08); padding: 18px; border-radius: 12px; border-left: 5px solid {BRAND_COLORS.MAIN_MINT}; border: 1px solid rgba(20, 184, 166, 0.2);">
+                    <p style="font-size: 0.9rem; line-height: 1.6; margin: 0; color: #1e293b; font-weight: 500;">
+                        <b style="color: {BRAND_COLORS.MAIN_MINT};">인사이트 요약</b><br>
+                        로데이터 분석 결과, 유저들은 <b>의도적으로 복잡한 해지 절차</b>와 <b>불친절한 UI</b>에 큰 피로감을 느끼고 있습니다. 투명한 정보 공개가 핵심입니다.
                     </p>
                 </div>
             """, unsafe_allow_html=True)
+            st.write("")
             
-            # 실제 VOC 샘플 출력
-            sample_voc = self.df['usage_expect'].dropna().sample(min(3, len(self.df))).tolist()
-            for voc in sample_voc:
-                st.markdown(f"""
-                    <div style="margin-top: 10px; background-color: rgba(255,255,255,0.02); padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
-                        <p style="font-size: 0.85rem; color: #cbd5e1; margin: 0;">"{voc}"</p>
-                    </div>
-                """, unsafe_allow_html=True)
+            st.markdown(f"<p style='font-size: 0.85rem; color: #475569; font-weight: 700; margin-top: 15px; margin-bottom: 8px;'>💬 카테고리별 유저 목소리</p>", unsafe_allow_html=True)
+            # 카테고리별 답변 (배경 대비 텍스트 명도 강화)
+            for cat, voc_list in categorized_voc.items():
+                if voc_list:
+                    st.markdown(f"""
+                        <div style="margin-bottom: 10px; background-color: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                            <span style="font-size: 0.78rem; color: #0f172a; font-weight: 800; background-color: #ccfbf1; padding: 2px 6px; border-radius: 4px;">{cat}</span>
+                            <p style="font-size: 0.85rem; color: #334155; margin: 8px 0 0 0; line-height: 1.5; font-weight: 500;">"{voc_list[0]}"</p>
+                        </div>
+                    """, unsafe_allow_html=True)
