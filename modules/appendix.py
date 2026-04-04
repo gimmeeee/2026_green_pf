@@ -5,6 +5,31 @@ import pandas as pd
 from config import BRAND_COLORS
 
 def show_appendix_page(df):
+    st.markdown("""
+        <style>
+            /* 버튼 텍스트 줄바꿈 방지 및 글자 크기 조정 */
+            div.stButton > button p {
+                font-size: 12px !important;
+                white-space: nowrap !important;
+            }
+            /* 사이드바 카테고리 간격(구분선 및 텍스트) 줄이기 */
+            [data-testid="stSidebar"] hr {
+                margin: 0.5rem 0 !important;
+            }
+            [data-testid="stSidebar"] .stMarkdown {
+                margin-bottom: -0.5rem !important;
+            }
+            /* 버튼 사이의 세로 간격 줄이기 */
+            [data-testid="stHorizontalBlock"] {
+                gap: 0.3rem !important;
+            }
+            /* 위젯 간 간격 축소 */
+            div[data-testid="stVerticalBlock"] > div {
+                gap: 0.5rem !important;
+            }
+        </style>
+    """, unsafe_allow_html=True)
+
     st.markdown("## 📊 데이터 부록: 구독 행태 심층 탐색기")
     st.write("로데이터(Raw Data)를 기반으로 특정 그룹의 구독 가치관과 소비 패턴을 실시간으로 분석합니다.")
 
@@ -27,25 +52,47 @@ def show_appendix_page(df):
         if col in working_df.columns:
             working_df[col] = pd.to_numeric(working_df[col], errors='coerce').fillna(0)
 
-    # --- 사이드바 필터 ---
+    # --- [사이드바 필터 영역] ---
     st.sidebar.subheader("🔎 그룹 필터링")
-
-    all_genders = sorted(working_df['gender'].unique().tolist()) if 'gender' in working_df.columns else []
-    selected_genders = st.sidebar.multiselect("성별 선택", options=all_genders, default=all_genders)
     
-    all_jobs = sorted(working_df['job'].unique().tolist())
-    selected_jobs = st.sidebar.multiselect("직업군 선택", options=all_jobs, default=all_jobs)
-    
-    all_ages = sorted(working_df['age_group'].unique().tolist())
-    selected_ages = st.sidebar.multiselect("연령대 선택", options=all_ages, default=all_ages)
+    # 세션 상태 초기화
+    if 'filters' not in st.session_state:
+        st.session_state.filters = {
+            'gender': sorted(working_df['gender'].unique().tolist()),
+            'job': sorted(working_df['job'].unique().tolist()),
+            'age_group': sorted(working_df['age_group'].unique().tolist())
+        }
 
-    # 필터링 적용
-    mask = (
-        working_df['gender'].isin(selected_genders) & 
-        working_df['job'].isin(selected_jobs) & 
-        working_df['age_group'].isin(selected_ages)
+    # 사이드바 내부에 버튼형 필터 구현
+    def render_sidebar_filter(label, key, options):
+        st.sidebar.write(f"**{label}**")
+        # 사이드바 공간이 좁으므로 2열 정도로 배치
+        cols = st.sidebar.columns(2) 
+        for i, opt in enumerate(options):
+            is_active = opt in st.session_state.filters[key]
+            # 버튼 클릭 시 토글
+            if cols[i % 2].button(opt, key=f"side_{key}_{opt}", 
+                                  use_container_width=True,
+                                  type="primary" if is_active else "secondary"):
+                if is_active:
+                    st.session_state.filters[key].remove(opt)
+                else:
+                    st.session_state.filters[key].append(opt)
+                st.rerun()
+
+    render_sidebar_filter("성별", 'gender', sorted(working_df['gender'].unique().tolist()))
+    st.sidebar.markdown("---")
+    render_sidebar_filter("직업군", 'job', sorted(working_df['job'].unique().tolist()))
+    st.sidebar.markdown("---")
+    render_sidebar_filter("연령대", 'age_group', sorted(working_df['age_group'].unique().tolist()))
+
+    # 필터링 마스크
+    selected_mask = (
+        working_df['gender'].isin(st.session_state.filters['gender']) & 
+        working_df['job'].isin(st.session_state.filters['job']) & 
+        working_df['age_group'].isin(st.session_state.filters['age_group'])
     )
-    f_df = working_df[mask]
+    f_df = working_df[selected_mask]
 
     # --- 수정사항 2: 응답자 없을 때 메시지 처리 ---
     if f_df.empty:
