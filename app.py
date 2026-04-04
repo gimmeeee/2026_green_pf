@@ -132,6 +132,27 @@ def render_chatbot_ui():
             display: block !important;
             margin-bottom: 10px !important;
         }}
+                
+        /* 첫번째 셀렉트박스 하단 여백 줄이기 */
+        div[data-element-to-attach-key="side_menu"] {{
+            margin-bottom: -25px !important; /* 컨테이너 자체의 바닥 마진 깎기 */
+        }}
+
+        div[data-element-to-attach-key="side_menu"] div[data-testid="stSelectbox"] {{
+            margin-bottom: 0px !important;
+            padding-bottom: 0px !important;
+        }}
+
+        /* 셀렉트박스 내부의 실제 박스 영역 여백 제거 */
+        div[data-element-to-attach-key="side_menu"] div[data-baseweb="select"] {{
+            padding-bottom: 0px !important;
+        }}
+                
+        /* 구분선(divider)의 위쪽 여백을 죽여서 메뉴와 밀착 */
+        div[data-testid="stSidebar"] hr {{
+            margin-top: -10px !important;
+            margin-bottom: 15px !important;
+        }}
 
         /* --- 챗봇 관련 스타일 --- */    
         /* 1. 채팅 메시지 스타일 (버블) */
@@ -226,6 +247,7 @@ def render_chatbot_ui():
             color: #adb5bd !important;
             opacity: 1 !important;
         }}
+        
         </style>
     """, unsafe_allow_html=True)
 
@@ -234,29 +256,22 @@ def render_chatbot_ui():
     st.components.v1.html(f"""
         <script>
         const setMintColor = () => {{
-            const buttons = window.parent.document.querySelectorAll('button[kind="primary"]');
+            const buttons = window.parent.document.querySelectorAll("button");
             buttons.forEach(btn => {{
-                btn.style.backgroundColor = '{BRAND_COLORS.MAIN_MINT}';
-                btn.style.borderColor = '{BRAND_COLORS.MAIN_MINT}';
-                btn.style.color = 'white';
+                // '어드바이저' 글자가 들어간 버튼만 민트로 강제 고정
+                if (btn.innerText.includes("어드바이저")) {{
+                    btn.style.backgroundColor = "{BRAND_COLORS.MAIN_MINT}";
+                    btn.style.borderColor = "{BRAND_COLORS.MAIN_MINT}";
+                    btn.style.color = "white";
+                }} 
+                // 필터링 버튼 등 나머지는 건드리지 않음
             }});
         }};
             
-        // 즉시 실행 및 반복 실행 (Streamlit 리렌더링 대응)
         setMintColor();
         setInterval(setMintColor, 500);
         </script>
     """, height=0)
-
-    # 마우스 올렸을 때를 위한 최소한의 CSS
-    st.markdown(f"""
-        <style>
-        div[data-testid="stSidebar"] button[kind="primary"]:hover {{
-            background-color: {BRAND_COLORS.SUB_MINT} !important;
-            opacity: 0.9;
-        }}
-        </style>
-    """, unsafe_allow_html=True)
 
     # ---------------------------------------------------------
     # [챗봇] 팝업 윈도우 구성
@@ -304,30 +319,42 @@ def main():
     st.set_page_config(page_title="Digital Rent Dashboard", layout="wide", page_icon="💸")
     st.markdown('<html lang="ko">', unsafe_allow_html=True)
 
+# [핵심] 데이터 로드 직후, 사이드바 버튼이 렌더링되기 전에 초기화 수행
+    if "chat_open" not in st.session_state:
+        st.session_state.chat_open = False
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+
     # 데이터 로드
     df = get_data()
 
     # 1. 사이드바 구성
     with st.sidebar:
-        st.title("🧭 단지 안내소")
+        st.title("🧭 ")
 
-        # 버튼 1: 데이터 동기화
-        if st.button("🔄 최신 데이터 강제 동기화", use_container_width=True):
-            st.cache_data.clear()
-            st.sidebar.success("캐시가 삭제되었습니다.")
-            time.sleep(1)
-            st.rerun()
-        
-        # 버튼 2: 챗봇 토글
-        btn_label = "❌ 어드바이저 닫기" if st.session_state.chat_open else "💬 분석 어드바이저"
-        if st.button(btn_label, type="primary", use_container_width=True):
-            st.session_state.chat_open = not st.session_state.chat_open
-            st.rerun()
+        with st.container(key="side_menu"):
+            menu = st.selectbox(
+                "메뉴",
+                ["Dashboard Home", "Survey Page", "부록"],
+                label_visibility="collapsed"
+            )
 
-        st.divider() # 버튼과 메뉴 사이 구분선
+        with st.container():
+            st.divider()
 
-        # 메뉴 드롭다운
-        menu = st.sidebar.selectbox("메뉴", ["Dashboard Home", "Survey Page", "부록"])
+            # 버튼 1: 데이터 동기화
+            if st.button("🔄 최신 데이터 강제 동기화", use_container_width=True):
+                st.cache_data.clear()
+                st.sidebar.success("캐시가 삭제되었습니다.")
+                time.sleep(1)
+                st.rerun()
+            
+            # 버튼 2: 챗봇 토글
+        with st.container(key="advisor_btn_wrapper"):
+            btn_label = "❌ 어드바이저 닫기" if st.session_state.chat_open else "💬 분석 어드바이저"
+            if st.button(btn_label, type="primary", use_container_width=True):
+                st.session_state.chat_open = not st.session_state.chat_open
+                st.rerun()
 
     # 2. 본문 렌더링
     if menu == "Dashboard Home":

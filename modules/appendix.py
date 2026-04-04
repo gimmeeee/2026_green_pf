@@ -5,42 +5,62 @@ import pandas as pd
 from config import BRAND_COLORS
 
 def show_appendix_page(df):
-    st.markdown("""
+    # ---------------------------------------------------------
+    # 0. 에러 방지용 세션 초기화 (app.py의 chat_open 누락 대응)
+    # ---------------------------------------------------------    
+    if "chat_open" not in st.session_state:
+        st.session_state.chat_open = False
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+
+    # ---------------------------------------------------------
+    # 1. UI 스타일 설정 (CSS)
+    # ---------------------------------------------------------
+    st.markdown(f"""
         <style>
-            /* 버튼 텍스트 줄바꿈 방지 및 글자 크기 조정 */
-            div.stButton > button p {
-                font-size: 12px !important;
+            /* 1. 체크박스 위젯 전체: 오른쪽 정렬 강제 */
+            div[data-testid="stSidebar"] .stCheckbox {{
+                display: flex !important;
+                justify-content: flex-end !important;
+                width: 100% !important;
+                margin-top: -30px !important; /* 제목 라인으로 올리기 */
+            }}
+            
+            /* 2. 체크박스 내부 라벨: 여백 제거 및 밀착 */
+            div[data-testid="stSidebar"] .stCheckbox > label {{
+                gap: 2px !important;
+                padding: 0 !important;
+                min-width: unset !important;
+                justify-content: flex-end !important;
+            }}
+
+            /* 3. '전체' 텍스트: 타이틀보다 확실히 작게 (9px) */
+            div[data-testid="stSidebar"] .stCheckbox label p {{
+                font-size: 9px !important; 
                 white-space: nowrap !important;
-            }
-            /* 사이드바 카테고리 간격(구분선 및 텍스트) 줄이기 */
-            [data-testid="stSidebar"] hr {
-                margin: 0.5rem 0 !important;
-            }
-            [data-testid="stSidebar"] .stMarkdown {
-                margin-bottom: -0.5rem !important;
-            }
-            /* 버튼 사이의 세로 간격 줄이기 */
-            [data-testid="stHorizontalBlock"] {
-                gap: 0.3rem !important;
-            }
-            /* 위젯 간 간격 축소 */
-            div[data-testid="stVerticalBlock"] > div {
-                gap: 0.5rem !important;
-            }
+                color: {BRAND_COLORS.SUB_TEXT} !important;
+                letter-spacing: -0.5px !important;
+                line-height: 1 !important;
+            }}
+
+            /* 4. 체크박스 네모 박스: 크기 대폭 축소 (0.65배) */
+            div[data-testid="stSidebar"] .stCheckbox [data-testid="stWidgetLabel"] div:first-child {{
+                transform: scale(0.65) !important; 
+                transform-origin: right center !important;
+                margin: 0 !important;
+            }}
         </style>
     """, unsafe_allow_html=True)
-
-    st.markdown("## 📊 데이터 부록: 구독 행태 심층 탐색기")
-    st.write("로데이터(Raw Data)를 기반으로 특정 그룹의 구독 가치관과 소비 패턴을 실시간으로 분석합니다.")
-
+    # ---------------------------------------------------------
+    # 2. 세션 상태 및 필터 로직 초기화, 데이터 전처리
+    # ---------------------------------------------------------
     if df is None or df.empty:
         st.warning("분석할 데이터가 로드되지 않았습니다.")
         return
 
-    # 컬럼명 전처리
     working_df = df.copy()
     
-    # 1. 숫자형 변환 (에러 방지용)
+    # 숫자형 컬럼 자동 변환
     ott_fee_cols = [c for c in working_df.columns if 'ott_fee_' in c]
     numeric_cols = [
         'fee_service_total', 'ott_time_total', 
@@ -52,10 +72,9 @@ def show_appendix_page(df):
         if col in working_df.columns:
             working_df[col] = pd.to_numeric(working_df[col], errors='coerce').fillna(0)
 
-    # --- [사이드바 필터 영역] ---
-    st.sidebar.subheader("🔎 그룹 필터링")
-    
-    # 세션 상태 초기화
+    # ---------------------------------------------------------
+    # 3. 사이드바 필터 시스템
+    # ---------------------------------------------------------
     if 'filters' not in st.session_state:
         st.session_state.filters = {
             'gender': sorted(working_df['gender'].unique().tolist()),
@@ -63,30 +82,84 @@ def show_appendix_page(df):
             'age_group': sorted(working_df['age_group'].unique().tolist())
         }
 
-    # 사이드바 내부에 버튼형 필터 구현
     def render_sidebar_filter(label, key, options):
-        st.sidebar.write(f"**{label}**")
-        # 사이드바 공간이 좁으므로 2열 정도로 배치
-        cols = st.sidebar.columns(2) 
-        for i, opt in enumerate(options):
-            is_active = opt in st.session_state.filters[key]
-            # 버튼 클릭 시 토글
-            if cols[i % 2].button(opt, key=f"side_{key}_{opt}", 
-                                  use_container_width=True,
-                                  type="primary" if is_active else "secondary"):
-                if is_active:
+        # 1. 필터 상태 및 체크박스 버전 초기화
+            all_key = f"all_{key}_state"
+            version_key = f"{key}_version"
+            
+            if all_key not in st.session_state:
+                st.session_state[all_key] = True
+            if version_key not in st.session_state:
+                st.session_state[version_key] = 0
+
+            # 현재 실제 데이터와 세션의 일치 여부 확인
+            is_now_all = set(options).issubset(set(st.session_state.filters[key]))
+
+            cols_head = st.sidebar.columns([4, 1.8])    
+            with cols_head[0]:
+                st.markdown(f"<div style='font-size:14px; font-weight:700; padding-top:5px;'>{label}</div>", unsafe_allow_html=True)
+
+            with cols_head[1]:
+                # 핵심: key 뒤에 version을 붙여 위젯을 강제로 새로고침함
+                check_val = st.checkbox(
+                    "전체", 
+                    value=st.session_state[all_key], 
+                    key=f"all_{key}_widget_v{st.session_state[version_key]}"
+                )
+                
+                # 체크박스 조작 시 처리
+                if check_val != st.session_state[all_key]:
+                    st.session_state[all_key] = check_val
+                    st.session_state.filters[key] = options if check_val else []
+                    st.rerun()
+
+            # 2. 버튼 클릭 핸들러
+            def handle_btn_click(opt):
+                if opt in st.session_state.filters[key]:
                     st.session_state.filters[key].remove(opt)
                 else:
                     st.session_state.filters[key].append(opt)
+                
+                # 버튼을 누르면 '전체' 상태를 계산하고, 체크박스 버전을 올려서 강제 갱신
+                new_all_state = set(options).issubset(set(st.session_state.filters[key]))
+                st.session_state[all_key] = new_all_state
+                st.session_state[version_key] += 1 # 이 값이 바뀌면 위젯이 새로 그려짐
                 st.rerun()
 
+            # 3. 버튼 레이아웃 및 클릭 로직
+            btn_cols = st.sidebar.columns(2)
+            long_opts = ["파트타임/프리랜서", "파트타임", "프리랜서"]
+            short_opts = [opt for opt in options if opt not in long_opts]
+
+            # 버튼 클릭 시 해당 항목만 넣거나 빼기 (반 버튼)
+            for i, opt in enumerate(short_opts):
+                active = opt in st.session_state.filters[key]
+                # 여기서 handle_btn_click(opt)를 호출합니다.
+                if btn_cols[i % 2].button(opt, key=f"btn_{key}_{opt}_v{st.session_state[version_key]}", 
+                                        use_container_width=True, 
+                                        type="primary" if active else "secondary"):
+                    handle_btn_click(opt)
+            # (파트타임/프리랜서용 긴 버튼) 동일하게 적용
+            for opt in long_opts:
+                if opt in options:
+                    active = opt in st.session_state.filters[key]
+                    # 여기서도 handle_btn_click(opt)를 호출합니다.
+                    if st.sidebar.button(opt, key=f"btn_{key}_{opt}_long_v{st.session_state[version_key]}", 
+                                        use_container_width=True,
+                                        type="primary" if active else "secondary"):
+                        handle_btn_click(opt)
+
+    # 사이드바 필터 실행
+    st.sidebar.markdown("---")
     render_sidebar_filter("성별", 'gender', sorted(working_df['gender'].unique().tolist()))
     st.sidebar.markdown("---")
-    render_sidebar_filter("직업군", 'job', sorted(working_df['job'].unique().tolist()))
+    job_order = ["학생", "직장인", "자영업자", "전업주부", "파트타임/프리랜서"]
+    actual_jobs = [j for j in job_order if j in working_df['job'].unique()]
+    render_sidebar_filter("직업군", 'job', actual_jobs)
     st.sidebar.markdown("---")
     render_sidebar_filter("연령대", 'age_group', sorted(working_df['age_group'].unique().tolist()))
 
-    # 필터링 마스크
+    # 필터링 적용
     selected_mask = (
         working_df['gender'].isin(st.session_state.filters['gender']) & 
         working_df['job'].isin(st.session_state.filters['job']) & 
@@ -94,41 +167,36 @@ def show_appendix_page(df):
     )
     f_df = working_df[selected_mask]
 
-    # --- 수정사항 2: 응답자 없을 때 메시지 처리 ---
+    if f_df.empty:
+        st.error("조건에 맞는 데이터가 없습니다.")
+        return
+
+    # ---------------------------------------------------------
+    # 4. 본문 대시보드 출력
+    # ---------------------------------------------------------
+    st.markdown("## 📊 데이터 부록: 구독 행태 심층 탐색기")
+    
     if f_df.empty:
         st.error("⚠️ 선택하신 조건에 해당하는 응답자가 없습니다. 필터를 조정해 주세요.")
         return
 
-    # --- 수정사항 1: 상단 요약 지표 변경 ---
+    # [상단 요약 지표]
     m1, m2, m3, m4 = st.columns([1, 1.2, 2.5, 1.2])
-    
-    with m1:
-        st.metric("응답 인원수", f"{len(f_df)}명")
-        
-    with m2:
-        # AQ2: 전체 구독료 평균
-        avg_total_fee = f_df['fee_service_total'].mean()
-        st.metric("평균 월구독료(전체)", f"{int(avg_total_fee):,}원")
-        
+    with m1: st.metric("응답 인원", f"{len(f_df)}명")
+    with m2: st.metric("평균 월구독료", f"{int(f_df['fee_service_total'].mean()):,}원")
     with m3:
-        def count_ott(x):
-            if pd.isna(x) or x == '없음': return 0
-            return len(str(x).split(','))
-        avg_ott_count = f_df['ott_current'].apply(count_ott).mean()
+        avg_ott_count = f_df['ott_current'].apply(lambda x: len(str(x).split(',')) if pd.notna(x) and x != '없음' else 0).mean()
         avg_ott_fee = f_df[ott_fee_cols].sum(axis=1).mean()
-        avg_time = f_df['ott_time_total'].mean()
-        
         st.write("**OTT 이용 요약 (평균)**")
-        st.caption(f"개수: {avg_ott_count:.1f}개 / 구독료: {int(avg_ott_fee):,}원 / 시청: {int(avg_time)}분")
-        
+        st.caption(f"개수: {avg_ott_count:.1f}개 / 구독료: {int(avg_ott_fee):,}원")
     with m4:
         if 'pain_management' in f_df.columns:
-            difficulty_rate = (f_df['pain_management'] == '예').mean() * 100
-            st.metric("관리 어려움", f"{difficulty_rate:.1f}%")
+            rate = (f_df['pain_management'] == '예').mean() * 100
+            st.metric("관리 어려움", f"{rate:.1f}%")
 
     st.markdown("---")
 
-    # --- 시각화 섹션 1 ---
+    # --- 시각화 섹션 1 : 성향 및 효율 ---
     col1, col2 = st.columns([1, 1])
 
     with col1:
