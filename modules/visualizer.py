@@ -508,7 +508,7 @@ class SkinVisualizer:
             fig_right = px.scatter(
                 self.df, x='ott_time_total', y='cost_per_hour',
                 color='user_seg', size='total_ott_fee',
-                color_discrete_map={'Light': "#F1AC90", 'Middle': '#dce0e6', 'Heavy': "#FF6D74"},
+                color_discrete_map={'Light': "#f79872", 'Middle': '#dce0e6', 'Heavy': "#FF6D74"},
                 category_orders={"user_seg": ["Light", "Middle", "Heavy"]},
                 labels={'ott_time_total': '주간 시청 시간 (h)', 'cost_per_hour': '시간당 비용 (원/h)', 'user_seg': '유저 쿼터'}
             )

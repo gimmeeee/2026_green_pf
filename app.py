@@ -72,14 +72,6 @@ def render_visual_dashboard(df):
         </style>
     """, unsafe_allow_html=True)
     
-    # 상단 요약 지표 (실제 데이터 개수 확인용)
-    col1, col2, empty_space = st.columns([1, 1, 3])
-    with col1:
-        st.metric("📊 총 응답 수", f"{len(df)}개")
-    with col2:
-        st.metric("📅 마지막 업데이트", time.strftime("%H:%M:%S"))
-    with empty_space:
-        st.empty()    
     st.divider()
 
     # 시각화 파트별 렌더링
@@ -316,7 +308,7 @@ def render_chatbot_ui():
 # =================================================================
 
 def main():
-    st.set_page_config(page_title="Digital Rent Dashboard", layout="wide", page_icon="💸")
+    st.set_page_config(page_title="Digital Rent", layout="wide", page_icon="💸")
     st.markdown('<html lang="ko">', unsafe_allow_html=True)
 
 # [핵심] 데이터 로드 직후, 사이드바 버튼이 렌더링되기 전에 초기화 수행
@@ -335,7 +327,7 @@ def main():
         with st.container(key="side_menu"):
             menu = st.selectbox(
                 "메뉴",
-                ["Dashboard Home", "Survey Page", "부록"],
+                ["DA report", "Survey", "Dashboard"],
                 label_visibility="collapsed"
             )
 
@@ -356,18 +348,115 @@ def main():
                 st.session_state.chat_open = not st.session_state.chat_open
                 st.rerun()
 
+    
+    # 페이지 이동 시 스크롤 초기화
+    if "last_menu" not in st.session_state:
+        st.session_state.last_menu = menu
+
+    if menu != st.session_state.last_menu:
+        st.session_state.last_menu = menu
+        st.rerun()
+
     # 2. 본문 렌더링
-    if menu == "Dashboard Home":
-        st.write("# 우리 단지 디지털 월세 리포트 💸")
+    if menu == "DA report":
+        st.markdown("""
+            <h1 style="font-size: 2.2rem; font-weight: 800; margin-bottom: 0.5rem; letter-spacing: -0.02em;">
+                디지털 월세 리포트 💸
+            </h1>
+        """, unsafe_allow_html=True)
+
+        # 설명글과 지표를 한 줄에 배치 (CSS + HTML)
+        current_time = time.strftime("%H:%M:%S")
+
+        # [CSS] 지표 텍스트 크기 및 정렬 정밀 제어
+        st.markdown(f"""
+            <style>
+            .header-container {{
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-end;
+                margin-bottom: 15px;
+                width: 100%;
+            }}
+            .description-box {{
+                flex: 1; /* 남는 공간을 차지해서 지표를 오른쪽으로 밀어냄 */
+                max-width: 70%;
+            }}
+            .description-text {{
+                color: #6c757d;
+                font-size: 1rem;
+                line-height: 1.7;
+                margin: 0;
+            }}
+            .metrics-box {{
+                display: flex;
+                gap: 2.5rem;
+                flex-shrink: 0;
+                padding-bottom: 2px; /* 설명글 바닥선과 시각적 높이 맞춤 */
+            }}
+            /* 개별 지표 아이템 내부 정렬 통일 */
+            .metric-item {{
+                text-align: right;
+            }}
+            .m-label {{
+                font-size: 0.85rem;
+                font-weight: 500;
+                color: #495057;
+                margin-bottom: 2px;
+            }}
+            .m-value-wrapper {{
+                line-height: 1.1;
+                display: flex;
+                justify-content: flex-end; /* 숫자+단위 오른쪽 밀착 */
+                align-items: baseline;
+            }}
+            .m-value {{
+                font-size: 1.7rem;
+                font-weight: 500;
+                color: #212529;
+            }}
+            .m-unit {{
+                font-size: 1.1rem;
+                font-weight: 400;
+                color: {BRAND_COLORS.SUB_TEXT};
+                margin-left: 3px;
+            }}
+            </style>
+
+            <div class="header-container">
+                <div class="description-box">
+                    <p class="description-text">
+                        본 리포트는 <b>'구독 서비스 통합 관리 앱'</b>의 초기 기획을 위한 사용자 리서치 결과입니다.<br>
+                        실시간 데이터를 반영하여 <span style="font-weight: 600;">멀티 페르소나</span>를 설정하고, 
+                        그들의 <b>잠재적 니즈</b>를 반영한 초기 서비스 기능을 설계합니다.
+                    </p>
+                </div>
+                <div class="metrics-box">
+                    <div>
+                        <div class="m-label">📊 응답 데이터</div>
+                        <div class="m-value-wrapper">
+                            <span class="m-value">{len(df)}</span><span class="m-unit">건</span>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="m-label">📅 마지막 업데이트</div>
+                        <div class="m-value-wrapper">
+                            <span class="m-value">{current_time}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+        
         if not df.empty:
             render_visual_dashboard(df)
         else:
             st.warning("수집된 데이터가 없습니다. 시트 연결 상태를 확인해주세요.")
-    
-    elif menu == "Survey Page":
+
+    elif menu == "Survey":
         show_normal_form()
 
-    elif menu == "부록":
+    elif menu == "Dashboard":
         if not df.empty:
             show_appendix_page(df)
         else:
