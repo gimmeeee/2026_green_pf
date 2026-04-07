@@ -58,40 +58,136 @@ def show_appendix_page(df):
                 font-size: 14px; font-weight: 700; color: #475569; 
                 margin-bottom: 8px; margin-top: 10px;
             }}
-            [data-testid="stMetricValue"] {{ font-size: 18px !important; }}
-            [data-testid="stMetricLabel"] {{ font-size: 11px !important; }}
+
+            /* KPI 카드 배경 및 테두리 슬림화 */
+            [data-testid="stMetric"] {{
+                background-color: #f8fafc;
+                border: 1px solid #f1f5f9;
+                padding: 8px 12px !important;
+                border-radius: 10px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+            }}
+            /* 메트릭 값 폰트 및 간격 조절 */
+            [data-testid="stMetricValue"] {{
+                font-size: 20px !important; 
+                line-height: 1.2 !important;
+            }}
+            [data-testid="stMetricLabel"] {{ 
+                font-size: 11px !important; 
+                margin-bottom: -5px !important;
+            }}
 
             /* 6. 랭킹카드 스타일 */
-            <style>
-            .ranking-card {{ background-color: #f8fafc; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0; }}
-            .ranking-text {{ font-size: 13px; font-weight: 600; color: #1e293b; }}
-
-            /* 7. 자유로운 레이아웃을 위한 디자인 추가 */
-            .info-card {{
-                background: white;
-                padding: 18px;
-                border-radius: 16px;
-                box-shadow: 0 4px 20px rgba(0,0,0,0.05); /* 그리드 느낌을 빼주는 그림자 */
+            .ranking-container {{
+                background: #f8fafc;
+                border-radius: 12px;
+                padding: 12px;
                 border: 1px solid #f1f5f9;
-                margin-bottom: 15px;
             }}
+            .rank-item {{
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 6px 0;
+                border-bottom: 1px solid #f1f5f9;
+            }}
+            .rank-item:last-child {{ border-bottom: none; }}
+            .rank-number {{
+                font-size: 10px;
+                font-weight: 800;
+                color: {BRAND_COLORS.MAIN_MINT};
+                margin-right: 6px;
+            }}
+            .rank-name {{
+                font-size: 12px;
+                font-weight: 600;
+                color: #334155;
+            }}
+            .rank-value {{
+                font-size: 11px;
+                color: #64748b;
+            }}
+
+            /* 7. 공간 압축을 위한 최적화 레이아웃 */
+            /* 차트와 텍스트를 감싸는 기본 카드 (그림자 제거, 여백 축소) */
+            .info-card {{
+                background: #ffffff;
+                padding: 10px; /* 18px에서 축소 */
+                border-radius: 12px;
+                border: 1px solid #f1f5f9;
+                margin-bottom: 8px; /* 간격 축소 */
+            }}
+
+            /* VOC 말풍선 (세로 길이 대폭 압축) */
             .voc-bubble {{
                 background: #fff5f5;
-                border-left: 4px solid {BRAND_COLORS.POINT_CORAL};
-                padding: 12px;
-                border-radius: 0 12px 12px 0;
-                margin-bottom: 10px;
-                font-size: 12px;
+                border-left: 3px solid {BRAND_COLORS.POINT_CORAL};
+                padding: 6px 12px; /* 상하 여백 축소 */
+                border-radius: 4px 10px 10px 4px;
+                margin-bottom: 5px; /* 다음 말풍선과의 간격 축소 */
+                font-size: 11px; /* 폰트 살짝 축소 */
+                line-height: 1.4;
             }}
+
+            /* 랭킹 강조 태그 (순위 표시용) */
             .ranking-tag {{
                 display: inline-block;
-                padding: 2px 8px;
+                padding: 1px 6px;
                 background: {BRAND_COLORS.MAIN_MINT};
                 color: white;
                 border-radius: 4px;
                 font-size: 10px;
                 font-weight: 800;
-                margin-bottom: 5px;
+                margin-right: 5px;
+            }}
+
+            /* 1. 그리드 카드 공통 스타일 (박스 규격 고정) */
+            .grid-card {{
+                background: white;
+                padding: 12px 15px;
+                border-radius: 12px;
+                border: 1px solid #eff1f3;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+                margin-bottom: 10px;
+                overflow: hidden; /* 내부 요소가 넘치지 않게 */
+            }}
+
+            /* 통합 KPI 바: 글자가 깨지지 않게 최소 너비와 flex 설정 강화 */
+            .kpi-wrapper {{
+                display: flex;
+                flex-direction: row; /* 가로 방향 강제 */
+                justify-content: space-around;
+                align-items: center;
+                background: white;
+                padding: 20px 10px;
+                border-radius: 12px;
+                border: 1px solid #eff1f3;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+                margin-bottom: 25px;
+                width: 100%;
+            }}
+            .kpi-unit {{ 
+                text-align: center; 
+                flex: 1;
+                min-width: 100px; /* 항목이 너무 좁아지지 않게 */
+            }}
+            .kpi-label {{ 
+                font-size: 12px; 
+                color: #64748b; 
+                margin-bottom: 4px;
+                white-space: nowrap; /* 줄바꿈 방지 */
+            }}
+            .kpi-val {{ 
+                font-size: 22px; 
+                font-weight: 800; 
+                color: #1e293b;
+                white-space: nowrap; /* 줄바꿈 방지 */
+            }}
+            
+            /* 그리드 타이틀 스타일 */
+            .grid-title {{
+                font-size: 13px; font-weight: 700; color: #475569;
+                margin-bottom: 10px; display: flex; align-items: center; gap: 5px;
             }}
         </style>
     """, unsafe_allow_html=True)
@@ -233,69 +329,143 @@ def show_appendix_page(df):
 
     # region 4-1. 시각화 컴포넌트 (함수 정의 섹션)
     def render_kpi_metrics(f_df):
-        """최상단 요약 지표"""
-        k1, k2, k3, k4 = st.columns(4)
-        k1.metric("분석 인원", f"{len(f_df)}명")
-        k2.metric("평균 구독료", f"{int(f_df['fee_service_total'].mean()):,}원")
-        k3.metric("OTT 이탈 경험", f"{(f_df['ott_cancel'] == '예').mean()*100:.1f}%")
-        k4.metric("평균 시청시간", f"{int(f_df['ott_time_total'].mean())}분")
+        """한 줄로 압축된 슬림형 KPI 바"""
+        # 1. 데이터 계산
+        # [1] 분석 샘플수
+        sample_count = str(len(f_df))
+        
+        # [2] 평균 구독료 (전체 서비스 합계: fee_service_total)
+        avg_total_fee_val = f_df['fee_service_total'].mean() if 'fee_service_total' in f_df.columns else 0
+        avg_total_fee = format(int(avg_total_fee_val), ',')
 
-    def render_category_bar(f_df, height=380):
-        """카테고리별 경험 vs 현재이용 막대 차트"""
+        # [3] OTT 평균 구독 개수 (True/False 컬럼들을 합산)
+        ott_current_cols = [
+            'ott_current_netflix', 'ott_current_tving', 'ott_current_wavve', 
+            'ott_current_disney', 'ott_current_couplay', 'ott_current_watcha', 
+            'ott_current_laftel', 'ott_current_etc'
+        ]
+        # 존재하는 컬럼만 필터링해서 합산
+        available_ott_cols = [col for col in ott_current_cols if col in f_df.columns]
+        if available_ott_cols:
+            avg_ott_count_val = f_df[available_ott_cols].sum(axis=1).mean()
+        else:
+            avg_ott_count_val = 0
+        avg_ott_count = format(avg_ott_count_val, '.1f')
+
+        # [4] OTT 평균 월구독료 (각 OTT 요금 컬럼 합산)
+        ott_fee_cols = [
+            'ott_fee_netflix', 'ott_fee_tving', 'ott_fee_wavve', 
+            'ott_fee_disney', 'ott_fee_couplay', 'ott_fee_watcha', 
+            'ott_fee_laftel', 'ott_fee_etc'
+        ]
+        available_fee_cols = [col for col in ott_fee_cols if col in f_df.columns]
+        if available_fee_cols:
+            # 각 행별로 OTT 요금을 모두 더한 뒤 평균 계산
+            avg_ott_fee_val = f_df[available_fee_cols].sum(axis=1).mean()
+        else:
+            avg_ott_fee_val = 0
+        avg_ott_fee = format(int(avg_ott_fee_val), ',')
+
+        # [5] 이탈 경험률 (ott_cancel)
+        cancel_rate_val = (f_df['ott_cancel'] == '예').mean() * 100 if 'ott_cancel' in f_df.columns else 0
+        cancel_rate = format(cancel_rate_val, '.1f')
+
+        # 2. 문자열 조립 (f-string/중괄호 충돌 원천 차단)
+        html_code = (
+            '<div style="display: flex; flex-direction: row; justify-content: space-between; align-items: center; '
+            'background: white; padding: 15px 10px; border-radius: 12px; border: 1px solid #eff1f3; '
+            'box-shadow: 0 2px 8px rgba(0,0,0,0.04); margin-bottom: 25px; width: 100%;">'
+            
+            '<div style="text-align: center; flex: 1;">'
+            '<div style="font-size: 11px; color: #64748b; white-space: nowrap; margin-bottom: 2px;">분석 샘플수</div>'
+            '<div style="font-size: 19px; font-weight: 800; color: #1e293b; white-space: nowrap;">' + sample_count + '명</div>'
+            '</div>'
+            '<div style="width:1px; height:20px; background:#f1f5f9;"></div>'
+
+            '<div style="text-align: center; flex: 1.2;">'
+            '<div style="font-size: 11px; color: #64748b; white-space: nowrap; margin-bottom: 2px;">평균 구독료</div>'
+            '<div style="font-size: 19px; font-weight: 800; color: #1e293b; white-space: nowrap;">' + avg_total_fee + '원</div>'
+            '</div>'
+            '<div style="width:1px; height:20px; background:#f1f5f9;"></div>'
+
+            '<div style="text-align: center; flex: 1.2;">'
+            '<div style="font-size: 11px; color: #64748b; white-space: nowrap; margin-bottom: 2px;">OTT 평균 구독 개수</div>'
+            '<div style="font-size: 19px; font-weight: 800; color: #1e293b; white-space: nowrap;">' + avg_ott_count + '개</div>'
+            '</div>'
+            '<div style="width:1px; height:20px; background:#f1f5f9;"></div>'
+
+            '<div style="text-align: center; flex: 1.2;">'
+            '<div style="font-size: 11px; color: #64748b; white-space: nowrap; margin-bottom: 2px;">OTT 평균 월구독료</div>'
+            '<div style="font-size: 19px; font-weight: 800; color: #1e293b; white-space: nowrap;">' + avg_ott_fee + '원</div>'
+            '</div>'
+            '<div style="width:1px; height:20px; background:#f1f5f9;"></div>'
+
+            '<div style="text-align: center; flex: 1;">'
+            '<div style="font-size: 11px; color: #64748b; white-space: nowrap; margin-bottom: 2px;">OTT 이탈 경험률</div>'
+            '<div style="font-size: 19px; font-weight: 800; color: #1e293b; white-space: nowrap;">' + cancel_rate + '%</div>'
+            '</div>'
+            '</div>'
+        )
+
+        st.markdown(html_code, unsafe_allow_html=True)
+
+    def render_category_dot_plot(f_df, height=320):
+        """막대 대신 덤벨(Lollipop) 차트로 공간 압축 및 가독성 확보"""
         cat_map = {
-            "ott": "OTT", "shopping": "쇼핑/멤버십", "food": "장보기/식음료",
-            "edu": "도서/교육", "cleaning": "세탁/청소", "pack": "짐 보관",
-            "media": "미디어", "aisw": "AI/SW", "game": "게임", "etc": "기타"
+            "ott": "OTT", "shopping": "쇼핑/멤버십", "media": "미디어", 
+            "aisw": "AI/SW", "food": "장보기/식음료", "edu": "도서/교육", 
+            "game": "게임", "cleaning": "세탁/청소", "pack": "짐 보관", "etc": "기타"
         }
-        cat_plot = []
+        
+        plot_data = []
         for key, label in cat_map.items():
-            ever_col = f"service_ever_{key}"
-            curr_col = f"service_current_{key}"
+            ever_s = pd.to_numeric(f_df[f"service_ever_{key}"].replace({'TRUE':1,'FALSE':0,True:1,False:0}), errors='coerce').fillna(0)
+            curr_s = pd.to_numeric(f_df[f"service_current_{key}"].replace({'TRUE':1,'FALSE':0,True:1,False:0}), errors='coerce').fillna(0)
             
-            # [해결 로직] 
-            # 1. pd.to_numeric(..., errors='coerce') -> 문자열 "TRUE"를 숫자 1로 바꾸거나, 실패 시 NaN으로 만듦
-            # 2. fillna(0) -> NaN을 0으로 채움
-            # 3. sum() -> 이제 안전하게 숫자로 합산됨
+            ever_val = int(ever_s.sum())
+            curr_val = int(curr_s.sum())
             
-            ever_val = 0
-            if ever_col in f_df.columns:
-                # 혹시라도 불리언/문자열이 섞여있을 경우를 대비해 확실하게 숫자로 변환 후 합산
-                ever_series = pd.to_numeric(f_df[ever_col].replace({'TRUE': 1, 'FALSE': 0, 'True': 1, 'False': 0}), errors='coerce')
-                ever_val = ever_series.fillna(0).sum()
-                
-            curr_val = 0
-            if curr_col in f_df.columns:
-                curr_series = pd.to_numeric(f_df[curr_col].replace({'TRUE': 1, 'FALSE': 0, 'True': 1, 'False': 0}), errors='coerce')
-                curr_val = curr_series.fillna(0).sum()
-            
-            # 합산 결과가 float일 수 있으므로 안전하게 int로 변환하여 추가
-            cat_plot.append({'Category': label, '구분': '경험함', '인원': int(ever_val)})
-            cat_plot.append({'Category': label, '구분': '현재이용', '인원': int(curr_val)})
+            plot_data.append({'Category': label, '값': ever_val, '구분': '경험함'})
+            plot_data.append({'Category': label, '값': curr_val, '구분': '현재이용'})
+
+        pdf = pd.DataFrame(plot_data)
         
-        plot_df = pd.DataFrame(cat_plot)
+        # 1. 배경 선 (덤벨의 막대 부분) 생성
+        fig = go.Figure()
         
-        # 시각화 부분
-        fig = px.bar(
-            plot_df, 
-            x='Category', 
-            y='인원', 
-            color='구분', 
-            barmode='group',
-            text='인원',
-            color_discrete_map={'경험함': '#e2e8f0', '현재이용': BRAND_COLORS.MAIN_MINT}
-        )
-        
-        fig.update_traces(textposition='outside', textfont_size=11, textfont_weight='bold')
+        for cat in cat_map.values():
+            cat_df = pdf[pdf['Category'] == cat]
+            fig.add_trace(go.Scatter(
+                x=cat_df['값'], y=[cat, cat],
+                mode='lines',
+                line=dict(color='#e2e8f0', width=4),
+                showlegend=False,
+                hoverinfo='none'
+            ))
+
+        # 2. 경험함/현재이용 점(Dot) 추가
+        for g, color, size in zip(['경험함', '현재이용'], ['#cbd5e1', BRAND_COLORS.MAIN_MINT], [10, 14]):
+            g_df = pdf[pdf['구분'] == g]
+            fig.add_trace(go.Scatter(
+                x=g_df['값'], y=g_df['Category'],
+                mode='markers+text',
+                name=g,
+                marker=dict(color=color, size=size),
+                text=g_df['값'] if g == '현재이용' else "", # 현재 이용수만 텍스트 노출
+                textposition="middle right",
+                textfont=dict(size=10, color='#475569', family="Pretendard")
+            ))
+
         fig.update_layout(
-            height=height, 
-            margin=dict(t=30, b=0, l=0, r=0), 
-            xaxis_title=None, 
-            yaxis_title=None,
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            plot_bgcolor='rgba(0,0,0,0)', 
-            paper_bgcolor='rgba(0,0,0,0)'
+            height=height,
+            margin=dict(t=20, b=20, l=0, r=40),
+            xaxis=dict(showgrid=True, gridcolor='#f1f5f9', title=None),
+            yaxis=dict(autorange="reversed", title=None), # 상위 항목이 위로 오게
+            showlegend=True,
+            legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1),
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
         )
-        
         st.plotly_chart(fig, use_container_width=True)
 
     def render_value_radar(f_df, working_df, height=380):
@@ -337,23 +507,33 @@ def show_appendix_page(df):
         brand_cols = [c for c in f_df.columns if 'ott_current_' in c and c not in ['ott_current', 'ott_current_none', 'ott_current_etc']]
         
         if mode == 'pop':
-            title, color = "👥 이용자 수 순위", BRAND_COLORS.MAIN_MINT
+            title, suffix = "👥 이용자 수 순위", "명"
             data = f_df[brand_cols].sum().sort_values(ascending=False).head(5)
-            suffix = "명"
         else:
-            title, color = "⏳ 주평균 시청시간", "#64748b"
+            title, suffix = "⏳ 주평균 시청시간", "분"
             time_cols = [f'ott_time_{c.split("_")[-1]}' for c in brand_cols if f'ott_time_{c.split("_")[-1]}' in f_df.columns]
             data = f_df[time_cols].mean().sort_values(ascending=False).head(5)
-            suffix = "분"
 
-        st.markdown(f"<p style='font-size:12px; font-weight:700; color:#64748b;'>{title}</p>", unsafe_allow_html=True)
+        # 1. 제목 생성
+        title_html = f"<p style='font-size:12px; font-weight:700; color:#64748b; margin-bottom:5px;'>{title}</p>"
+    
+        # 2. 리스트 아이템 생성 (가장 안전한 join 방식)
+        items_list = []
         for i, (col, val) in enumerate(data.items()):
             b_name = col.split('_')[-1].upper()
-            st.markdown(f"""
-                <div style='margin-bottom: 10px; padding: 8px; border-radius: 8px; background: #f8fafc; border-left: 4px solid {color};'>
-                    <span style='font-size:11px; font-weight:800;'>{i+1}위</span> <b>{b_name}</b> <span style='float:right; font-size:12px;'>{int(val)}{suffix}</span>
-                </div>
-            """, unsafe_allow_html=True)
+            item = (
+                f"<div class='rank-item'>"
+                f"<div><span class='rank-number'>{i+1}위</span><span class='rank-name'>{b_name}</span></div>"
+                f"<div class='rank-value'>{int(val)}{suffix}</div>"
+                f"</div>"
+            )
+            items_list.append(item)
+        
+        # 3. 전체 결합 및 렌더링
+        full_content = f"{title_html}<div class='ranking-container'>{''.join(items_list)}</div>"
+        
+        # [중요] 반드시 st.write나 일반 호출이 아닌 unsafe_allow_html=True를 포함한 st.markdown 사용
+        st.markdown(full_content, unsafe_allow_html=True)
 
     def render_cancel_reasons(f_df, height=300):
         """해지 사유 가로 바 차트"""
@@ -378,33 +558,42 @@ def show_appendix_page(df):
         st.error("조건에 맞는 데이터가 없습니다.")
     else:
         st.markdown("## 📊 데이터 부록: 구독 행태 심층 분석")
-        # [배치 1] 핵심 지표 (가로 전체 활용)
+
+       # [Layer 1] 통합 KPI 카드
         render_kpi_metrics(f_df)
 
-        st.markdown("<div style='margin-bottom: 20px;'></div>", unsafe_allow_html=True)
+    # 2. 메인 분석 그리드 (덤벨 / 랭킹 / 레이더)
+    row1_col1, row1_col2, row1_col3 = st.columns([1.4, 1, 1])
 
-        # [배치 2] 거시 분석 (카테고리 vs 가치관)
-        st.markdown("<div class='chart-sub-title'>1️⃣ 구독 카테고리 이용 현황 및 중요 가치</div>", unsafe_allow_html=True)
-        row2_c1, row2_c2 = st.columns([2.2, 1])
-        with row2_c1:
-            render_category_bar(f_df, height=420)
-        with row2_c2:
-            render_value_radar(f_df, df, height=420)
+    with row1_col1:
+        with st.container(border=True):
+            st.markdown("<div class='grid-title'>🎯 카테고리별 유지율</div>", unsafe_allow_html=True)
+            render_category_dot_plot(f_df, height=330)
 
-        st.markdown("---")
-
-        # [배치 3] 미시 분석 (이용자 순위 vs 시간 순위 vs 해지 사유)
-        st.markdown("<div class='chart-sub-title'>2️⃣ OTT 서비스 상세 이용 행태 분석</div>", unsafe_allow_html=True)
-        row3_c1, row3_c2, row3_c3 = st.columns([1, 1, 1.2])
-        with row3_c1:
+    with row1_col2:
+        with st.container(border=True): # 랭킹은 컨테이너 자체가 카드 역할을 함
             render_brand_ranking(f_df, mode='pop')
-        with row3_c2:
+        st.markdown("<div style='margin-top:8px;'></div>", unsafe_allow_html=True)
+        with st.container(border=True):
             render_brand_ranking(f_df, mode='time')
-        with row3_c3:
-            render_cancel_reasons(f_df, height=300)
 
-        # [배치 4] 사용자 목소리 (VOC)
-        st.markdown("<div class='chart-sub-title'>3️⃣ 사용자 페인포인트 (생생한 목소리)</div>", unsafe_allow_html=True)
-        render_voc_bubbles(f_df)
+    with row1_col3:
+        with st.container(border=True):
+            st.markdown("<div class='grid-title'>🕸️ 중요 가치 비교</div>", unsafe_allow_html=True)
+            render_value_radar(f_df, df, height=330)
+
+    # 3. 하단 상세 그리드 (해지 사유 / VOC) - 사라졌던 부분 복구!
+    st.markdown("<div style='margin-top:10px;'></div>", unsafe_allow_html=True)
+    row2_col1, row2_col2 = st.columns([1, 1.2])
+
+    with row2_col1:
+        with st.container(border=True):
+            st.markdown("<div class='grid-title'>🚩 주요 해지 사유 (Top 5)</div>", unsafe_allow_html=True)
+            render_cancel_reasons(f_df, height=200)
+
+    with row2_col2:
+        with st.container(border=True):
+            st.markdown("<div class='grid-title'>💬 사용자 페인포인트</div>", unsafe_allow_html=True)
+            render_voc_bubbles(f_df)
 
     # endregion
