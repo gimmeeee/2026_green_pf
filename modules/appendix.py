@@ -2,7 +2,9 @@ import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
+import numpy as np
 import time
+import re
 from config import BRAND_COLORS
 
 def show_appendix_page(df):
@@ -79,33 +81,39 @@ def show_appendix_page(df):
 
             /* 6. 랭킹카드 스타일 */
             .ranking-container {{
-                background: #f8fafc;
-                border-radius: 12px;
-                padding: 12px;
-                border: 1px solid #f1f5f9;
+                background: transparent; /* 배경색 제거 (이중 박스 느낌 방지) */
+                border-radius: 0px;
+                padding: 0px;           /* 패딩 제거 */
+                border: none;           /* 테두리 제거 */
             }}
             .rank-item {{
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
-                padding: 6px 0;
+                padding: 14px 4px !important;  /* 아이템 간격 살짝 조정 */
                 border-bottom: 1px solid #f1f5f9;
             }}
             .rank-item:last-child {{ border-bottom: none; }}
+            /* 랭킹 카드(sub_col1, sub_col2) 사이의 간격을 넓히는 설정 */
+            div[data-testid="column"]:has(.rank-item) {{
+                padding-left: 5px !important;
+                padding-right: 5px !important;
+            }}
             .rank-number {{
-                font-size: 10px;
+                font-size: 11px;
                 font-weight: 800;
                 color: {BRAND_COLORS.MAIN_MINT};
-                margin-right: 6px;
+                margin-right: 8px;
             }}
             .rank-name {{
-                font-size: 12px;
+                font-size: 13px;
                 font-weight: 600;
                 color: #334155;
             }}
             .rank-value {{
-                font-size: 11px;
+                font-size: 12px;
                 color: #64748b;
+                font-weight: 500;
             }}
 
             /* 7. 공간 압축을 위한 최적화 레이아웃 */
@@ -188,6 +196,11 @@ def show_appendix_page(df):
             .grid-title {{
                 font-size: 13px; font-weight: 700; color: #475569;
                 margin-bottom: 10px; display: flex; align-items: center; gap: 5px;
+            }}
+            /* 모든 컨테이너 내부 패딩 통일 */
+            div[data-testid="stVerticalBlock"] > div > div > div[data-testid="stVerticalBlock"] {{
+                padding: 0px !important;
+                gap: 0.5rem !important;
             }}
         </style>
     """, unsafe_allow_html=True)
@@ -443,26 +456,31 @@ def show_appendix_page(df):
                 hoverinfo='none'
             ))
 
-        # 2. 경험함/현재이용 점(Dot) 추가
+        # 2. 경험함/현재이용 점(Dot) 추가 + ,호버 템플릿
         for g, color, size in zip(['경험함', '현재이용'], ['#cbd5e1', BRAND_COLORS.MAIN_MINT], [10, 14]):
             g_df = pdf[pdf['구분'] == g]
+
+            display_color = color if g == '현재이용' else "#6D6F72"
+            custom_hover = f"<span style='color:{display_color}; font-weight:bold'>{g}</span><br>%{{y}}: %{{x}}<extra></extra>"
+
             fig.add_trace(go.Scatter(
                 x=g_df['값'], y=g_df['Category'],
                 mode='markers+text',
                 name=g,
-                marker=dict(color=color, size=size),
-                text=g_df['값'] if g == '현재이용' else "", # 현재 이용수만 텍스트 노출
+                marker=dict(color=color, size=size), # 차트 점 색상은 기존 유지
+                text=g_df['값'] if g == '현재이용' else "", 
                 textposition="middle right",
-                textfont=dict(size=10, color='#475569', family="Pretendard")
+                textfont=dict(size=10, color='#475569', family="Pretendard"),
+                hovertemplate=custom_hover
             ))
 
         fig.update_layout(
             height=height,
-            margin=dict(t=20, b=20, l=0, r=40),
+            margin=dict(t=30, b=30, l=10, r=20),
             xaxis=dict(showgrid=True, gridcolor='#f1f5f9', title=None),
             yaxis=dict(autorange="reversed", title=None), # 상위 항목이 위로 오게
             showlegend=True,
-            legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1),
+            legend=dict(orientation="h", yanchor="bottom", y=0.98, xanchor="right", x=1.01),
             plot_bgcolor='rgba(0,0,0,0)',
             paper_bgcolor='rgba(0,0,0,0)',
         )
@@ -488,15 +506,35 @@ def show_appendix_page(df):
             avg_selected = get_clean_mean(f_df, r_keys)    # 선택 그룹 평균
 
             fig = go.Figure()
-            fig.add_trace(go.Scatterpolar(r=avg_total, theta=r_labels, fill='toself', name='전체 평균', line_color='#cbd5e1'))
-            fig.add_trace(go.Scatterpolar(r=avg_selected, theta=r_labels, fill='toself', name='선택 그룹', line_color=BRAND_COLORS.MAIN_MINT))
+            # 1. 전체 평균 (호버 텍스트 색상을 더 진한 회색 #6D6F72로 설정)
+            fig.add_trace(go.Scatterpolar(
+                r=avg_total, theta=r_labels, fill='toself', name='전체 평균', 
+                line_color='#cbd5e1',
+                hovertemplate="<span style='color:#6D6F72; font-weight:bold'>전체 평균</span><br>%{theta}: %{r:.1f}점<extra></extra>"
+            ))
+            
+            # 2. 선택 그룹 (호버 텍스트 색상을 메인 민트로 설정)
+            fig.add_trace(go.Scatterpolar(
+                r=avg_selected, theta=r_labels, fill='toself', name='선택 그룹', 
+                line_color=BRAND_COLORS.MAIN_MINT,
+                hovertemplate=f"<span style='color:{BRAND_COLORS.MAIN_MINT}; font-weight:bold'>선택 그룹</span><br>%{{theta}}: %{{r:.1f}}점<extra></extra>"
+            ))
             
             fig.update_layout(
-                polar=dict(radialaxis=dict(visible=False, range=[0, 7])), 
+                polar=dict(radialaxis=dict(visible=False, range=[0, 7]),
+                        angularaxis=dict(linecolor='rgba(200, 200, 200, 0.4)', linewidth=1),
+                        domain=dict(x=[0, 1], y=[0.05, 1])), 
                 height=height,
-                margin=dict(t=60, b=40, l=40, r=40), 
+                margin=dict(t=30, b=30, l=30, r=40), 
                 showlegend=True,
-                legend=dict(orientation="h", yanchor="top", y=0, xanchor="center", x=0.5)
+                legend=dict(orientation="h", yanchor="top", y=-0.05, xanchor="center", x=0.5),
+                hoverlabel=dict(
+                    font=dict(size=12, family="Pretendard"), 
+                    align="left",
+                    bgcolor="white",
+                    bordercolor="#e2e8f0",
+                    showarrow=False
+                )
             )
             st.plotly_chart(fig, use_container_width=True)
         except Exception as e:
@@ -515,7 +553,7 @@ def show_appendix_page(df):
             data = f_df[time_cols].mean().sort_values(ascending=False).head(5)
 
         # 1. 제목 생성
-        title_html = f"<p style='font-size:12px; font-weight:700; color:#64748b; margin-bottom:5px;'>{title}</p>"
+        title_html = f"<p style='font-size:12px; font-weight:700; color:#64748b; margin-top:-5px; margin-bottom:5px;'>{title}</p>"
     
         # 2. 리스트 아이템 생성 (가장 안전한 join 방식)
         items_list = []
@@ -537,20 +575,200 @@ def show_appendix_page(df):
 
     def render_cancel_reasons(f_df, height=300):
         """해지 사유 가로 바 차트"""
-        reason_cols = [c for c in f_df.columns if 'ott_cancel_reason_' in c and c != 'ott_cancel_reason_primary']
-        reasons = f_df[reason_cols].sum().sort_values().tail(5)
-        fig = px.bar(x=reasons.values, y=[c.replace('ott_cancel_reason_', '').capitalize() for c in reasons.index],
-                    orientation='h', color_discrete_sequence=[BRAND_COLORS.POINT_CORAL])
-        fig.update_layout(height=height, margin=dict(t=0, b=0, l=0, r=0), xaxis_title=None, yaxis_title=None,
-                        plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
-        st.plotly_chart(fig, use_container_width=True)
+        column_mapping = {
+            'ott_cancel_reason_series': '보던 시리즈 종료',
+            'ott_cancel_reason_low_usage': '접속 빈도 낮음',
+            'ott_cancel_reason_alert': '자동결제 알림 보고',
+            'ott_cancel_reason_switching': '타 OTT 이동',
+            'ott_cancel_reason_contents': '콘텐츠 부족',
+            'ott_cancel_reason_price': '가격 부담',
+            'ott_cancel_reason_etc': '기타'
+            }
+        
+        # 데이터 추출 (해지 경험자 대상)
+        target_df = f_df[f_df['ott_cancel'] == '예'].copy()
+
+        # 에러 방지: 데이터가 없으면 안내 문구 출력 후 종료
+        if target_df.empty:
+            st.info("해지 사유 데이터가 없습니다.")
+            return
+
+        # 빈도 계산
+        counts_dict = {}
+        for col, label in column_mapping.items():
+            if col in target_df.columns:
+                counts_dict[label] = target_df[col].fillna(0).astype(int).sum()
+            else:
+                counts_dict[label] = 0
+
+        # '기타' 상세 내용만 ott_cancel_reason 컬럼에서 별도로 추출
+        etc_details = []
+        if 'ott_cancel_reason' in target_df.columns:
+            # 모든 응답을 쉼표로 쪼갠 뒤 '기타('가 포함된 텍스트만 필터링
+            all_reasons = target_df['ott_cancel_reason'].dropna().str.split(',').explode().str.strip()
+            for resp in all_reasons:
+                if '기타' in resp:
+                    # 괄호 안의 내용만 추출 (예: 기타(화질 불만) -> 화질 불만)
+                    detail = re.findall(r'\((.*?)\)', resp)
+                    if detail:
+                        etc_details.append(detail[0])
+                    elif len(resp) > 2: # '기타' 두 글자보다 길면 상세 내용으로 간주
+                        etc_details.append(resp.replace('기타', '').strip())
+
+        # 차트용 정렬 데이터 생성
+        sorted_counts = pd.Series(counts_dict).sort_values(ascending=True)
+        plot_labels = sorted_counts.index.tolist()
+        plot_values = sorted_counts.values.tolist()
+
+        # 호버 텍스트 구성
+        unique_etc = list(dict.fromkeys([d for d in etc_details if d]))
+        etc_hover_list = "• " + "<br>• ".join(unique_etc[:7]) if unique_etc else "상세 내용 없음"
+        if len(unique_etc) > 7: etc_hover_list += "<br>..."
+
+        hover_texts = []
+        for label in plot_labels:
+            if label == '기타':
+                hover_texts.append(etc_hover_list) # 기타만 상세 리스트 전달
+            else:
+                hover_texts.append("") # 나머지는 빈 값
+
+        fig = go.Figure(go.Bar(
+            x=plot_values,
+            y=plot_labels,
+            orientation='h',
+            marker_color=BRAND_COLORS.MAIN_MINT,
+            text=plot_values,
+            textposition='outside',
+            textfont=dict(size=11, color=BRAND_COLORS.LIGHT_TEXT),
+            customdata=hover_texts,
+            hovertemplate=(
+                "%{y}: %{x}<br>" + 
+                "%{customdata}<extra></extra>"
+            ),
+            cliponaxis=False
+        ))
+
+        fig.update_layout(
+            height=height,
+            margin=dict(t=10, b=10, l=40, r=20),
+            xaxis=dict(showticklabels=False, showgrid=False, zeroline=False),
+            yaxis=dict(tickfont=dict(size=12, color=BRAND_COLORS.LIGHT_TEXT)),
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            hoverlabel=dict(bgcolor="white", font_size=12)
+        )
+        
+        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
     def render_voc_bubbles(f_df):
         """VOC 말풍선"""
-        voc_list = f_df['pain_point_open'].replace(['nan', '없음', '아니오', 'X'], pd.NA).dropna().unique()
-        v_cols = st.columns(2)
-        for i, v in enumerate(voc_list[:4]):
-            v_cols[i % 2].markdown(f"<div class='voc-bubble'>“{v}”</div>", unsafe_allow_html=True)
+        items_html = "" # 초기화
+    
+        # 1. 데이터 추출
+        raw_voc = f_df['pain_point_open'].dropna().astype(str).tolist()
+
+        # 2. 강력한 블랙리스트 (원본 유지)
+        final_blacklist = [
+            '없음', '딱히', '생각', '않음', '생각나지', '모르겠음', '안남', '안나요', '안나',
+            '생각나지 않음', '기타', '없습니다', '생각이', '없어요', '아니오', 'X', 'x', 'nan', '그냥', '글쎄요', '모르겠어요', '.....'
+        ]
+
+        # 3. 유사 문구 통합용 키워드 맵 (원본 유지)
+        similarity_map = {
+            "콘텐츠가 어느 OTT에 있는지 확인이 번거로움": ["어느 OTT", "어디에 있는지", "어디에서 서비스", "콘텐츠 검색", "컨텐츠 검색"],
+            "해지 절차가 복잡하고 찾기 어려움": ["해지 방법", "해지 버튼", "탈퇴", "해지 절차", "여러 단계"],
+            "자동 결제 알림 누락 및 갱신 불만": ["자동 결제", "결제 알림", "자동 갱신", "몰래 결제"],
+            "구독료 대비 이용 빈도 낮음": ["가격", "비싸", "금액", "돈", "이용 빈도"]
+        }
+
+        refined_voc = []
+        seen = set()
+
+        for text in raw_voc:
+            clean_text = text.strip()
+            
+            if any(bad_word in clean_text for bad_word in final_blacklist) or len(clean_text) <= 1: 
+                continue
+                
+            display_text = clean_text
+            for rep, kws in similarity_map.items():
+                if any(kw in clean_text for kw in kws):
+                    display_text = rep
+                    break
+            
+            if display_text not in seen:
+                refined_voc.append(display_text)
+                seen.add(display_text)
+
+        if not refined_voc: return ""
+
+        # f-string 대신 % 포맷팅이나 일반 결합을 사용하여 중괄호 충돌 방지
+        for v in refined_voc:
+            style = (
+                "padding: 8px 10px; "
+                "border-bottom: 1px solid #f1f5f9; "
+                "font-size: 13px; "
+                "line-height: 1.4; "
+                "color: #334155; "
+                "display: block;"
+            )
+            # 태그가 깨지지 않도록 가장 원시적인 방법으로 조립
+            items_html += '<div style="' + style + '">“' + str(v) + '”</div>'
+        
+        return items_html
+    
+    def render_cancel_reason_heatmap(f_df, height=280):
+        # 1. 해지 사유 컬럼 리스트 (Boolean 데이터)
+        cancel_cols = [
+            'ott_cancel_reason_series', 'ott_cancel_reason_low_usage',
+            'ott_cancel_reason_alert', 'ott_cancel_reason_switching',
+            'ott_cancel_reason_contents', 'ott_cancel_reason_price',
+            'ott_cancel_reason_etc'
+        ]
+        
+        # 한글 라벨 매핑
+        labels = ['보던 시리즈 종료', '접속 빈도 낮음', '자동결제 알림 보고', '타 OTT 이동', '콘텐츠 부족', '가격 부담', '기타']
+        
+        # 2. 해지 경험이 있는 사람만 필터링 및 데이터 추출
+        cancel_df = f_df[f_df['ott_cancel'] == '예'][cancel_cols].fillna(False).astype(int)
+        
+        if cancel_df.empty:
+            st.info("해지 경험 데이터가 부족하여 히트맵을 표시할 수 없습니다.")
+            return
+
+        # 3. 공통 발생 행렬(Co-occurrence Matrix) 계산
+        # 행렬 곱을 통해 두 사유가 동시에 True(1)인 횟수를 구함
+        co_matrix = cancel_df.T @ cancel_df
+        
+        # 4. 히트맵 시각화
+        fig = go.Figure(data=go.Heatmap(
+            z=co_matrix.values,
+            x=labels,
+            y=labels,
+            colorscale=[[0, BRAND_COLORS.LIGHT_CARD], [1, BRAND_COLORS.MAIN_MINT]], 
+            text=co_matrix.values,
+            texttemplate="%{text}",
+            textfont=dict(size=11, color=BRAND_COLORS.LIGHT_TEXT),
+            hoverinfo='none',
+            colorbar=dict(
+                thickness=15,
+                outlinecolor='rgba(0,0,0,0)', # 테두리 투명하게
+                bordercolor='rgba(0,0,0,0)',  # 외곽선 투명하게
+                tickfont=dict(size=10, color=BRAND_COLORS.SUB_TEXT),
+                len=0.9
+            )
+        ))
+
+        fig.update_layout(
+            height=height,
+            margin=dict(t=15, b=30, l=10, r=10),
+            xaxis=dict(side='bottom', tickfont=dict(size=10, color=BRAND_COLORS.SUB_TEXT)),
+            yaxis=dict(tickfont=dict(size=10, color=BRAND_COLORS.SUB_TEXT), autorange='reversed'),
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)'
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    
     # endregion
 
     # region 4-2. 메인 페이지 함수 (레이더/배치)
@@ -563,37 +781,103 @@ def show_appendix_page(df):
         render_kpi_metrics(f_df)
 
     # 2. 메인 분석 그리드 (덤벨 / 랭킹 / 레이더)
-    row1_col1, row1_col2, row1_col3 = st.columns([1.4, 1, 1])
+    CARD_HEIGHT = 310
+    row1_col1, row1_col2, row1_col3 = st.columns([1.6, 1.2, 1.4])
 
     with row1_col1:
         with st.container(border=True):
             st.markdown("<div class='grid-title'>🎯 카테고리별 유지율</div>", unsafe_allow_html=True)
-            render_category_dot_plot(f_df, height=330)
+            render_category_dot_plot(f_df, height=CARD_HEIGHT)
 
     with row1_col2:
-        with st.container(border=True): # 랭킹은 컨테이너 자체가 카드 역할을 함
-            render_brand_ranking(f_df, mode='pop')
-        st.markdown("<div style='margin-top:8px;'></div>", unsafe_allow_html=True)
         with st.container(border=True):
-            render_brand_ranking(f_df, mode='time')
+            st.markdown("<div class='grid-title'>🏆 브랜드별 랭킹</div>", unsafe_allow_html=True)
+            st.markdown("<div style='margin-bottom:6px;'></div>", unsafe_allow_html=True)
+
+            # gap='large'를 추가하여 두 랭킹 사이를 벌립니다.
+            sub_col1, sub_col2 = st.columns(2, gap="medium")
+
+            with sub_col1:
+                render_brand_ranking(f_df, mode='pop')
+
+            with sub_col2:
+                render_brand_ranking(f_df, mode='time')
+
+            st.markdown(
+                f"<div style='height:19px'></div>",
+                unsafe_allow_html=True
+            )
 
     with row1_col3:
         with st.container(border=True):
             st.markdown("<div class='grid-title'>🕸️ 중요 가치 비교</div>", unsafe_allow_html=True)
-            render_value_radar(f_df, df, height=330)
+            render_value_radar(f_df, df, height=CARD_HEIGHT)
 
-    # 3. 하단 상세 그리드 (해지 사유 / VOC) - 사라졌던 부분 복구!
+    # 3. 하단 상세 그리드 (해지 사유 top5 / 히트맵 / VOC)
     st.markdown("<div style='margin-top:10px;'></div>", unsafe_allow_html=True)
-    row2_col1, row2_col2 = st.columns([1, 1.2])
+    row2_col1, row2_col2, row2_col3 = st.columns([1, 1.6, 0.4]) 
+
+    COMMON_HEIGHT = 300
 
     with row2_col1:
         with st.container(border=True):
-            st.markdown("<div class='grid-title'>🚩 주요 해지 사유 (Top 5)</div>", unsafe_allow_html=True)
-            render_cancel_reasons(f_df, height=200)
+            st.markdown("<div class='grid-title'>📊 해지 사유</div>", unsafe_allow_html=True)
+            render_cancel_reasons(f_df, height=COMMON_HEIGHT) 
 
     with row2_col2:
         with st.container(border=True):
-            st.markdown("<div class='grid-title'>💬 사용자 페인포인트</div>", unsafe_allow_html=True)
-            render_voc_bubbles(f_df)
+            st.markdown("<div class='grid-title'>🔗 사유 간 복합 관계</div>", unsafe_allow_html=True)
+            render_cancel_reason_heatmap(f_df, height=COMMON_HEIGHT)
 
+    with row2_col3:
+        with st.container(border=True):
+            st.markdown("<div class='grid-title'>💬 VOC-OTT앱 불편한 점</div>", unsafe_allow_html=True)
+
+            # 함수에서 HTML 내용만 가져옴
+            voc_content = render_voc_bubbles(f_df)
+
+            custom_css = f"""
+            <style>
+                .voc-outer-frame {{
+                    padding: 0px 2px 10px 2px !important; 
+                }}
+                .voc-viewport {{
+                    position: relative;
+                    height: {COMMON_HEIGHT + 6}px; 
+                    overflow: hidden;
+                }}
+                .voc-scroll-area {{
+                    height: 100%;
+                    overflow-y: auto;
+                    scrollbar-width: none;
+                    -ms-overflow-style: none;
+                    padding-bottom: 60px !important;
+                }}
+                .voc-scroll-area::-webkit-scrollbar {{
+                    display: none;
+                }}
+                .voc-viewport::after {{
+                    content: '';
+                    position: absolute;
+                    bottom: 0; left: 0; right: 0; height: 50px;
+                    z-index: 5;
+                    pointer-events: none;
+                    background: linear-gradient(to top, rgba(255,255,255,1) 0%, rgba(255,255,255,0) 100%);
+                }}
+            </style>
+            """
+            
+            # 레이아웃 조립
+            main_html = f"""
+            <div class="voc-outer-frame">
+                <div class="voc-viewport">
+                    <div class="voc-scroll-area">
+                        {voc_content}
+                        <div style="height: 10px;"></div>
+                    </div>
+                </div>
+            </div>
+            """
+            
+            st.markdown(custom_css + main_html, unsafe_allow_html=True)
     # endregion
